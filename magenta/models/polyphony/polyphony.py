@@ -19,20 +19,16 @@ Use extract_melodies to extract monophonic melodies from a NoteSequence proto.
 import logging
 import math
 import numpy as np
+import enum
+from collections import namedtuple
 
 from magenta.protobuf import music_pb2
 
 
 # Special events.
-NUM_SPECIAL_EVENTS = 2
-NOTE_OFF = -1
-NO_EVENT = -2
-
-# Other constants.
-MIN_MIDI_PITCH = 0  # Inclusive.
-MAX_MIDI_PITCH = 127  # Inclusive.
-
-
+class SpecialEvents(enum.IntEnum):
+  NO_EVENT = 0
+  NOTE_HOLD = -1
 
 class BadNoteException(Exception):
   pass
@@ -87,10 +83,18 @@ class PolyphonicSequence(object):
       steps_per_bar: How many time steps per bar of music. Melody needs to know
           about bars to skip empty bars before the first note.
     """
-    self._events = np.zeros((1,1))
+    # Steps x Voices
+    self._events = np.zeros((0,0), dtype=int)
+    self._last_notes = np.zeros((0), dtype=int)
     self._steps_per_second = steps_per_second
     self._current_step = 0
     self._current_step_notes = set()
+
+  def _available_voice_indices():
+    if self._current_step == 0:
+      return []
+    else:
+      return (self._events[self._current_step - 1] == 0).nonzero()[0]
 
   def _add_note(self, note):
     """Adds the given note to the stream.
@@ -113,14 +117,19 @@ class PolyphonicSequence(object):
     #      'Given start step %d is before last on event at %d'
     #      % (start_step, self.last_on))
 
-    if note.start_step == note.end_step:
-      raise BadNoteException('Given start step and end step are the same: %d'
-                             % note.start_step)
-
+    # Assumes we get sorted input
     if self._current_step != note.start_step:
       # Sort self._current_step_notes into voices and add to self._events
-    else:
-      self._current_step_notes.add(note)
+      available_voices = self._available_voice_indices()
+      comb = itertools.combinations(self._current_step_notes, len(available_voices))
+      #broke
+      distance = lambda notes: np.sum(np.abs(np.array([note.pitch for n in notes]) - self._last_notes[available_voices]))
+      closest_voices = sorted(comb, key=distance)[0]
+      
+      # maintain _last_notes
+      self._current_step = note.start_step
+
+    self._current_step_notes.add(note)
 
   def _write_all_notes(self):
     """Write remaining note off event to `events`.
