@@ -13,22 +13,30 @@
 # limitations under the License.
 """Tests for polyphony."""
 
+import numpy as np
 import tensorflow as tf
 import polyphony
 
 class PolyphonyTest(tf.test.TestCase):
 
-  def testPolyphony(self):
+  def testVoiceAssignment(self):
     seq = polyphony.PolyphonicSequence()
-    n1 = polyphony._Note(50,0,5)
-    n2 = polyphony._Note(60,0,5)
-    n3 = polyphony._Note(61,6,10)
-    n4 = polyphony._Note(51,6,10)
-    seq._add_note(n1)
-    seq._add_note(n2)
-    seq._add_note(n3)
-    seq._write_current_step_notes()
-    import pdb; pdb.set_trace()
+    notes = [
+        polyphony.Note(50,0,2),
+        polyphony.Note(60,0,2),
+        polyphony.Note(40,1,3),
+        polyphony.Note(61,3,4),
+        polyphony.Note(51,3,4),
+    ]
+    seq.add_notes(notes)
+    expected = np.array([
+        [61, 51,  0],
+        [-1, -1, 41],
+        [-1, -1, -1],
+        [62, 52, -1],
+        [-1, -1,  0]])
+
+    self.assertTrue((expected == seq.get_events()).all())
 
 if __name__ == '__main__':
     tf.test.main()

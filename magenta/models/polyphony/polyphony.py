@@ -29,16 +29,13 @@ from magenta.protobuf import music_pb2
 NO_EVENT = 0
 NOTE_HOLD = -1
 
-MIDI_PITCH_OFFSET = 1 # Because 0 is NO_EVENT
+_MIDI_PITCH_OFFSET = 1 # Because 0 is NO_EVENT
 
-class BadNoteException(Exception):
-  pass
-
-class _Note(namedtuple('_Note', ['pitch', 'start_step', 'end_step'])):
+class Note(namedtuple('Note', ['pitch', 'start_step', 'end_step'])):
   __slots__ = ()
   @property
   def pitch_with_offset(self):
-    return self.pitch + MIDI_PITCH_OFFSET
+    return self.pitch + _MIDI_PITCH_OFFSET
 
 class PolyphonicSequence(object):
   """Stores a quantized stream of monophonic melody events.
@@ -103,12 +100,20 @@ class PolyphonicSequence(object):
     else:
       return (self._events[self._current_step] == NO_EVENT).nonzero()[0]
 
-  def _add_note_to_voice(self, voice, note):
+  def _write_note_to_voice(self, voice, note):
     # resize _events if needed
     if self._events.shape[1] <= voice:
-      self._events.resize((self._events.shape[0], voice + 1))
+      self._events = np.hstack((
+        self._events,
+        np.zeros(
+          (self._events.shape[0], voice - self._events.shape[1] + 1),
+          dtype=int)))
     if self._events.shape[0] <= note.end_step:
-      self._events.resize((note.end_step + 1, self._events.shape[1]))
+      self._events = np.vstack((
+        self._events,
+        np.zeros(
+          (note.end_step - self._events.shape[0] + 1, self._events.shape[1]),
+          dtype=int)))
 
     self._events[note.start_step][voice] = note.pitch_with_offset
     self._events[note.start_step+1:note.end_step+1][...,voice] = NOTE_HOLD
@@ -137,19 +142,23 @@ class PolyphonicSequence(object):
       distance += abs(note.pitch_with_offset - self._last_notes[voice_index])
     return distance
 
+  def _next_new_voice_index(self):
+    return self._events.shape[1];
+
   def _write_current_step_notes(self):
     if len(self._current_step_notes) == 0:
       return
 
     notes_to_assign = self._current_step_notes
 
+    # First try to find the best way to allocate notes into existing
+    # available voices.
     available_voice_indices = self._available_voice_indices()
-    voicing = [None] * len(voices_to_assign)
     if len(available_voice_indices) > 0:
       # Pad note list with None entries so it is at least as long as
       # available_voice_indices. This lets itertools.combinations find all
       # possible assignments for us.
-      padded_notes_to_assign = [notes_to_assign] + ([None] * (len(available_voice_indices) - len(notes_to_assign)))
+      padded_notes_to_assign = list(notes_to_assign) + ([None] * (len(available_voice_indices) - len(notes_to_assign)))
       voicings = itertools.combinations(padded_notes_to_assign, len(available_voice_indices))
       best_voicing = sorted(
           voicings,
@@ -157,18 +166,16 @@ class PolyphonicSequence(object):
             available_voice_indices, potential_voicing)
           )[0]
       for voice_index, note in zip(available_voice_indices, best_voicing):
+        if note is None:
+          continue
+        self._write_note_to_voice(voice_index, note)
         notes_to_assign.remove(note)
-        voicing[voice_index] = note
 
-    # fill in other voices
-    for i in range(len(voicing)):
-      if voicing[i] is None:
-        voicing[i] = notes_to_assign.pop()
-
-    assert(not notes_to_assign)
-    assert(None not in notes_to_assign)
-    for voice, note in enumerate(voicing):
-      self._add_note_to_voice(voice, note)
+    # All the remaining voices will be new voices
+    while notes_to_assign:
+      self._write_note_to_voice(
+          self._next_new_voice_index(),
+          notes_to_assign.pop())
 
   def _add_note(self, note):
     """Adds the given note to the stream.
@@ -186,17 +193,20 @@ class PolyphonicSequence(object):
           end at the onset of the end step. `end_step` must be greater than
           `start_step`.
     """
-    #if not self._can_add_note(start_step):
-    #  raise BadNoteException(
-    #      'Given start step %d is before last on event at %d'
-    #      % (start_step, self.last_on))
+    assert(note.start_step >= self._current_step)
 
-    # Assumes we get sorted input
-    if self._current_step != note.start_step:
+    if note.start_step > self._current_step:
       self._write_current_step_notes()
       self._update_last_notes()
-      self._current_step_notes.clear()
       self._current_step = note.start_step
 
     self._current_step_notes.add(note)
+
+  def add_notes(self, notes):
+    for note in sorted(notes, key=lambda note: note.start_step):
+      self._add_note(note)
+    self._write_current_step_notes()
+
+  def get_events(self):
+    return np.copy(self._events)
 
