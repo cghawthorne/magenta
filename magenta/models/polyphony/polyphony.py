@@ -96,21 +96,33 @@ class PolyphonicSequence(object):
     self._current_step_notes = set()
 
   def _available_voice_indices(self):
-    if self._current_step == 0:
-      return []
+    if self._events.shape[0] <= self._current_step:
+      # current step is beyond any written events.
+      # all voices are available
+      return range(0, self._events.shape[1])
     else:
-      return (self._events[self._current_step - 1] == 0).nonzero()[0]
+      return (self._events[self._current_step] == NO_EVENT).nonzero()[0]
 
   def _add_note_to_voice(self, voice, note):
+    # resize _events if needed
+    if self._events.shape[1] <= voice:
+      self._events.resize((self._events.shape[0], voice + 1))
+    if self._events.shape[0] <= note.end_step:
+      self._events.resize((note.end_step + 1, self._events.shape[1]))
+
     self._events[note.start_step][voice] = note.pitch_with_offset
-    self._events[note.start_step+1:note.end_step+1][...,voice] = SpecialEvents.NOTE_HOLD
+    self._events[note.start_step+1:note.end_step+1][...,voice] = NOTE_HOLD
 
   def _update_last_notes(self):
+    # resize _last_notes if needed
+    if self._last_notes.shape[0] < self._events.shape[1]:
+      self._last_notes.resize(self._events.shape[1])
+
     for i, note in enumerate(self._events[self._current_step]):
-      if note == SpecialEvents.NO_EVENT:
-        # no note is active on this voice
-        self._last_notes[i] = SpecialEvents.NO_EVENT
-      elif note == SpecialEvents.NOTE_HOLD:
+      if note == NO_EVENT:
+        # no note is active on this voice, keep the previous note
+        pass
+      elif note == NOTE_HOLD:
         # last note is still held
         pass
       else:
@@ -118,27 +130,25 @@ class PolyphonicSequence(object):
         self._last_notes[i] = note
 
   def _write_current_step_notes(self):
+    if len(self._current_step_notes) == 0:
+      return
+
     # Sort self._current_step_notes into voices and add to self._events
     available_voice_indices = self._available_voice_indices()
-    comb = itertools.combinations(self._current_step_notes, len(available_voice_indices))
-    distance = lambda notes: np.sum(np.abs(np.array([note.pitch_with_offset for n in notes]) - self._last_notes[available_voice_indices]))
-    closest_voices = sorted(comb, key=distance)[0]
-
-    # resize _events and _last_notes if needed
-    if self._events.shape[1] < len(self._current_step_notes):
-      self._events.resize((self._events.shape[0], len(self._current_step_notes)))
-      self._last_notes.resize(len(self._current_step_notes))
+    closest_voices = []
+    if len(available_voice_indices) > 0:
+      # TODO: handle case where there are fewer notes than available voices
+      comb = itertools.combinations(self._current_step_notes, len(available_voice_indices))
+      distance = lambda notes: np.sum(np.abs(np.array([note.pitch_with_offset for n in notes]) - self._last_notes[available_voice_indices]))
+      import pdb; pdb.set_trace()
+      closest_voices = sorted(comb, key=distance)[0]
 
     # determine array positions
-    notes = closest_voices + (self._current_step_notes - set(closest_voices))
-    num_new_voices = len(voices) - len(available_voice_indices)
-    voices = available_voice_indices + range(self._events.shape[1] - num_new_voices, self._events.shape[1])
+    notes = list(closest_voices) + list(self._current_step_notes - set(closest_voices))
+    num_new_voices = len(notes) - len(available_voice_indices)
+    voices = available_voice_indices + range(self._events.shape[1], self._events.shape[1] + num_new_voices)
     for voice, note in zip(voices, notes):
       self._add_note_to_voice(voice, note)
-    
-    self._current_step = note.start_step
-    self._current_step_notes.clear()
-    self._update_last_notes()
 
   def _add_note(self, note):
     """Adds the given note to the stream.
@@ -164,6 +174,9 @@ class PolyphonicSequence(object):
     # Assumes we get sorted input
     if self._current_step != note.start_step:
       self._write_current_step_notes()
+      self._update_last_notes()
+      self._current_step_notes.clear()
+      self._current_step = note.start_step
 
     self._current_step_notes.add(note)
 

@@ -11,26 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Tests for polyphony."""
 
-# Description:
-# Model that supports polyphony
+import tensorflow as tf
+import polyphony
 
-py_binary(
-    name = "create_dataset",
-    srcs = ["create_dataset.py"],
-    deps = [":polyphony"]
-)
+class PolyphonyTest(tf.test.TestCase):
 
-py_test(
-    name = "polyphony_test",
-    srcs = ["polyphony_test.py"],
-    deps = [":polyphony"]
-)
+  def testPolyphony(self):
+    seq = polyphony.PolyphonicSequence()
+    n1 = polyphony._Note(50,0,5)
+    n2 = polyphony._Note(60,0,5)
+    n3 = polyphony._Note(61,6,10)
+    n4 = polyphony._Note(51,6,10)
+    seq._add_note(n1)
+    seq._add_note(n2)
+    seq._add_note(n3)
+    seq._write_current_step_notes()
+    import pdb; pdb.set_trace()
 
-py_library(
-    name = "polyphony",
-    srcs = ["polyphony.py"],
-    deps = [
-    	"//magenta:music_py_pb2"
-    ],
-)
+if __name__ == '__main__':
+    tf.test.main()
