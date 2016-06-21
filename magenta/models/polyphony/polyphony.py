@@ -129,25 +129,45 @@ class PolyphonicSequence(object):
         # new note is active on this voice
         self._last_notes[i] = note
 
+  def _voicing_distance_from_last_notes(self, voice_indices, notes):
+    distance = 0
+    for voice_index, note in zip(voice_indices, notes):
+      if note is None:
+        continue
+      distance += abs(note.pitch_with_offset - self._last_notes[voice_index])
+    return distance
+
   def _write_current_step_notes(self):
     if len(self._current_step_notes) == 0:
       return
 
-    # Sort self._current_step_notes into voices and add to self._events
-    available_voice_indices = self._available_voice_indices()
-    closest_voices = []
-    if len(available_voice_indices) > 0:
-      # TODO: handle case where there are fewer notes than available voices
-      comb = itertools.combinations(self._current_step_notes, len(available_voice_indices))
-      distance = lambda notes: np.sum(np.abs(np.array([note.pitch_with_offset for n in notes]) - self._last_notes[available_voice_indices]))
-      import pdb; pdb.set_trace()
-      closest_voices = sorted(comb, key=distance)[0]
+    notes_to_assign = self._current_step_notes
 
-    # determine array positions
-    notes = list(closest_voices) + list(self._current_step_notes - set(closest_voices))
-    num_new_voices = len(notes) - len(available_voice_indices)
-    voices = available_voice_indices + range(self._events.shape[1], self._events.shape[1] + num_new_voices)
-    for voice, note in zip(voices, notes):
+    available_voice_indices = self._available_voice_indices()
+    voicing = [None] * len(voices_to_assign)
+    if len(available_voice_indices) > 0:
+      # Pad note list with None entries so it is at least as long as
+      # available_voice_indices. This lets itertools.combinations find all
+      # possible assignments for us.
+      padded_notes_to_assign = [notes_to_assign] + ([None] * (len(available_voice_indices) - len(notes_to_assign)))
+      voicings = itertools.combinations(padded_notes_to_assign, len(available_voice_indices))
+      best_voicing = sorted(
+          voicings,
+          key=lambda potential_voicing: self._voicing_distance_from_last_notes(
+            available_voice_indices, potential_voicing)
+          )[0]
+      for voice_index, note in zip(available_voice_indices, best_voicing):
+        notes_to_assign.remove(note)
+        voicing[voice_index] = note
+
+    # fill in other voices
+    for i in range(len(voicing)):
+      if voicing[i] is None:
+        voicing[i] = notes_to_assign.pop()
+
+    assert(not notes_to_assign)
+    assert(None not in notes_to_assign)
+    for voice, note in enumerate(voicing):
       self._add_note_to_voice(voice, note)
 
   def _add_note(self, note):
