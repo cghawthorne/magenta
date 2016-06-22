@@ -29,6 +29,12 @@ from magenta.protobuf import music_pb2
 NOTE_HOLD = -1
 NO_EVENT = -2
 
+class BadNoteException(Exception):
+  pass
+
+class MultipleMidiProgramsException(Exception):
+  pass
+
 Note = namedtuple('Note', ['pitch', 'start_step', 'end_step'])
 
 class PolyphonicSequence(object):
@@ -72,7 +78,7 @@ class PolyphonicSequence(object):
         _write_all_notes was called.
   """
 
-  def __init__(self, steps_per_second=20):
+  def __init__(self, note_sequence, steps_per_second=20):
     """Construct an empty Melody.
 
     Args:
@@ -85,6 +91,8 @@ class PolyphonicSequence(object):
     self._steps_per_second = steps_per_second
     self._current_step = 0
     self._current_step_notes = set()
+
+    self._add_notes(note_sequence.notes)
 
   def _available_voice_indices(self):
     if self._events.shape[0] <= self._current_step:
@@ -190,9 +198,35 @@ class PolyphonicSequence(object):
 
     self._current_step_notes.add(note)
 
-  def add_notes(self, notes):
-    for note in sorted(notes, key=lambda note: note.start_step):
-      self._add_note(note)
+  def _quantize(self, time):
+    # TODO: math.round?
+    return int(math.ceil((time * self._steps_per_second) - .5))
+
+  def _add_notes(self, notes):
+    # TODO: filter out percussion notes
+    active_program = None
+    for note in sorted(notes, key=lambda note: note.start_time):
+      # Ignore 0 velocity notes.
+      if not note.velocity:
+        continue
+
+      # Do not allow notes to start or end in negative time.
+      if note.start_time < 0 or note.end_time < 0:
+        raise BadNoteException(
+            'Got negative note time: start_time = %s, end_time = %s'
+            % (note.start_time, note.end_time))
+
+      # Allow only 1 active program
+      active_program = active_program or note.program
+      if active_program != note.program:
+        raise MultipleMidiProgramsException(
+            'Got new program %s when active program is %s'
+            % (note.program, active_program))
+
+      self._add_note(Note(
+        note.pitch,
+        self._quantize(note.start_time),
+        self._quantize(note.end_time)))
     self._write_current_step_notes()
 
   def get_events(self):

@@ -17,18 +17,28 @@ import numpy as np
 import tensorflow as tf
 import polyphony
 
-class PolyphonyTest(tf.test.TestCase):
+from magenta.protobuf import music_pb2
 
+def create_note_sequence(notes):
+  sequence = music_pb2.NoteSequence()
+  for pitch, start_time, end_time in notes:
+    note = sequence.notes.add()
+    note.pitch = pitch
+    note.velocity = 100
+    note.start_time = start_time
+    note.end_time = end_time
+  return sequence
+
+class PolyphonyTest(tf.test.TestCase):
   def testVoiceAssignment(self):
-    seq = polyphony.PolyphonicSequence()
-    notes = [
-        polyphony.Note(50,0,2),
-        polyphony.Note(60,0,2),
-        polyphony.Note(40,1,3),
-        polyphony.Note(61,3,4),
-        polyphony.Note(51,3,4),
-    ]
-    seq.add_notes(notes)
+    note_sequence = create_note_sequence([
+      (50, 0, .1),
+      (60, 0, .1),
+      (40, .05, .15),
+      (61, .15, .2),
+      (51, .15, .2),
+    ])
+    seq = polyphony.PolyphonicSequence(note_sequence)
     expected = np.array([
         [60, 50,  -2],
         [-1, -1, 40],
