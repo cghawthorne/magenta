@@ -37,7 +37,7 @@ class PolyphonicSequenceTest(tf.test.TestCase):
         [51, 61, -1],
         [-1, -1,  -2]])
 
-    self.assertTrue((expected == seq.get_events()).all())
+    np.testing.assert_array_equal(expected, seq.get_events())
 
 if __name__ == '__main__':
     tf.test.main()

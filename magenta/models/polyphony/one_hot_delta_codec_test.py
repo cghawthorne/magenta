@@ -55,7 +55,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     expected[4][1][note_hold] = 1
     expected[4][2][no_event] = 1
 
-    self.assertTrue((expected == encoded).all())
+    np.testing.assert_array_equal(expected, encoded)
 
 if __name__ == '__main__':
     tf.test.main()
