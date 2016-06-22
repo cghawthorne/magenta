@@ -17,11 +17,37 @@ This script will extract melodies from NoteSequence protos and save them to
 TensorFlow's SequenceExample protos for input to the basic RNN model.
 """
 
+import sequence
+import logging
+import sys
+import tensorflow as tf
 
-import polyphony
+FLAGS = tf.app.flags.FLAGS
+tf.app.flags.DEFINE_string('input', None,
+                           'TFRecord to read NoteSequence protos from.')
+tf.app.flags.DEFINE_string('train_output', None,
+                           'TFRecord to write SequenceExample protos to. '
+                           'Contains training set.')
+tf.app.flags.DEFINE_string('eval_output', None,
+                           'TFRecord to write SequenceExample protos to. '
+                           'Contains eval set. No eval set is produced if '
+                           'this flag is not set.')
+tf.app.flags.DEFINE_float('eval_ratio', 0.0,
+                          'Fraction of input to set asside for eval set. '
+                          'Partition is randomly selected.')
 
-def main():
-  import pdb; pdb.set_trace()
+def main(unused_argv):
+  root = logging.getLogger()
+  root.setLevel(logging.INFO)
+  ch = logging.StreamHandler(sys.stdout)
+  ch.setLevel(logging.INFO)
+  root.addHandler(ch)
+
+  reader = note_sequence_io.note_sequence_record_iterator(sequences_file)
+  input_count = 0
+  for sequence_data in reader:
+    polyphonic_sequence = sequence.PolyphonicSequence(sequence_data)
+    import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
-  main()
+  tf.app.run()

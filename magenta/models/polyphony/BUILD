@@ -18,19 +18,49 @@
 py_binary(
     name = "create_dataset",
     srcs = ["create_dataset.py"],
-    deps = [":polyphony"]
+    deps = [
+      ":sequence",
+      ":one_hot_delta_codec",
+    ]
 )
 
 py_test(
-    name = "polyphony_test",
-    srcs = ["polyphony_test.py"],
-    deps = [":polyphony"]
+    name = "sequence_test",
+    srcs = ["sequence_test.py"],
+    deps = [
+    	":sequence",
+	":test_helper",
+    ],
 )
 
 py_library(
-    name = "polyphony",
-    srcs = ["polyphony.py"],
+    name = "sequence",
+    srcs = ["sequence.py"],
     deps = [
     	"//magenta:music_py_pb2"
+    ],
+)
+
+py_library(
+    name = "test_helper",
+    srcs = ["test_helper.py"],
+    deps = [
+    	"//magenta:music_py_pb2"
+    ],
+)
+
+py_library(
+    name = "one_hot_delta_codec",
+    srcs = ["one_hot_delta_codec.py"],
+    deps = [":sequence"],
+)
+
+py_test(
+    name = "one_hot_delta_codec_test",
+    srcs = ["one_hot_delta_codec_test.py"],
+    deps = [
+    	":sequence",
+	":one_hot_delta_codec",
+	":test_helper",
     ],
 )

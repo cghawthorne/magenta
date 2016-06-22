@@ -11,11 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for polyphony."""
-
-import numpy as np
-import tensorflow as tf
-import polyphony
+"""Helper for polyphony tests."""
 
 from magenta.protobuf import music_pb2
 
@@ -28,25 +24,3 @@ def create_note_sequence(notes):
     note.start_time = start_time
     note.end_time = end_time
   return sequence
-
-class PolyphonyTest(tf.test.TestCase):
-  def testVoiceAssignment(self):
-    note_sequence = create_note_sequence([
-      (50, 0, .1),
-      (60, 0, .1),
-      (40, .05, .15),
-      (61, .15, .2),
-      (51, .15, .2),
-    ])
-    seq = polyphony.PolyphonicSequence(note_sequence)
-    expected = np.array([
-        [60, 50,  -2],
-        [-1, -1, 40],
-        [-1, -1, -1],
-        [61, 51, -1],
-        [-1, -1,  -2]])
-
-    self.assertTrue((expected == seq.get_events()).all())
-
-if __name__ == '__main__':
-    tf.test.main()

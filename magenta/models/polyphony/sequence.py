@@ -29,6 +29,8 @@ from magenta.protobuf import music_pb2
 NOTE_HOLD = -1
 NO_EVENT = -2
 
+NUM_SPECIAL_EVENTS = 2
+
 class BadNoteException(Exception):
   pass
 
@@ -155,7 +157,7 @@ class PolyphonicSequence(object):
       # available_voice_indices. This lets itertools.combinations find all
       # possible assignments for us.
       padded_notes_to_assign = list(notes_to_assign) + ([None] * (len(available_voice_indices) - len(notes_to_assign)))
-      voicings = itertools.combinations(padded_notes_to_assign, len(available_voice_indices))
+      voicings = itertools.permutations(padded_notes_to_assign, len(available_voice_indices))
       best_voicing = sorted(
           voicings,
           key=lambda potential_voicing: self._voicing_distance_from_last_notes(
@@ -168,10 +170,14 @@ class PolyphonicSequence(object):
         notes_to_assign.remove(note)
 
     # All the remaining voices will be new voices
-    while notes_to_assign:
+    # Sort to make the assignment order deterministic for unit tests
+    for note in sorted(notes_to_assign, key=lambda note: note.pitch):
       self._write_note_to_voice(
           self._next_new_voice_index(),
-          notes_to_assign.pop())
+          note)
+      notes_to_assign.remove(note)
+
+    assert(not notes_to_assign)
 
   def _add_note(self, note):
     """Adds the given note to the stream.
@@ -228,6 +234,8 @@ class PolyphonicSequence(object):
         self._quantize(note.start_time),
         self._quantize(note.end_time)))
     self._write_current_step_notes()
+
+    # TODO: trim any empty space at beginning
 
   def get_events(self):
     return np.copy(self._events)
