@@ -30,11 +30,11 @@ class PolyphonyTest(tf.test.TestCase):
     ]
     seq.add_notes(notes)
     expected = np.array([
-        [61, 51,  0],
-        [-1, -1, 41],
+        [60, 50,  -2],
+        [-1, -1, 40],
         [-1, -1, -1],
-        [62, 52, -1],
-        [-1, -1,  0]])
+        [61, 51, -1],
+        [-1, -1,  -2]])
 
     self.assertTrue((expected == seq.get_events()).all())
 

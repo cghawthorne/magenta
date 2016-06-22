@@ -26,16 +26,10 @@ from magenta.protobuf import music_pb2
 
 
 # Special events.
-NO_EVENT = 0
 NOTE_HOLD = -1
+NO_EVENT = -2
 
-_MIDI_PITCH_OFFSET = 1 # Because 0 is NO_EVENT
-
-class Note(namedtuple('Note', ['pitch', 'start_step', 'end_step'])):
-  __slots__ = ()
-  @property
-  def pitch_with_offset(self):
-    return self.pitch + _MIDI_PITCH_OFFSET
+Note = namedtuple('Note', ['pitch', 'start_step', 'end_step'])
 
 class PolyphonicSequence(object):
   """Stores a quantized stream of monophonic melody events.
@@ -86,8 +80,8 @@ class PolyphonicSequence(object):
           about bars to skip empty bars before the first note.
     """
     # Steps x Voices
-    self._events = np.zeros((0,0), dtype=int)
-    self._last_notes = np.zeros((0), dtype=int)
+    self._events = np.empty((0,0), dtype=int)
+    self._last_notes = np.empty((0), dtype=int)
     self._steps_per_second = steps_per_second
     self._current_step = 0
     self._current_step_notes = set()
@@ -103,19 +97,19 @@ class PolyphonicSequence(object):
   def _write_note_to_voice(self, voice, note):
     # resize _events if needed
     if self._events.shape[1] <= voice:
-      self._events = np.hstack((
-        self._events,
-        np.zeros(
-          (self._events.shape[0], voice - self._events.shape[1] + 1),
-          dtype=int)))
+      expansion = np.empty(
+        (self._events.shape[0], voice - self._events.shape[1] + 1),
+        dtype=int)
+      expansion.fill(NO_EVENT)
+      self._events = np.hstack((self._events, expansion))
     if self._events.shape[0] <= note.end_step:
-      self._events = np.vstack((
-        self._events,
-        np.zeros(
-          (note.end_step - self._events.shape[0] + 1, self._events.shape[1]),
-          dtype=int)))
+      expansion = np.empty(
+        (note.end_step - self._events.shape[0] + 1, self._events.shape[1]),
+        dtype=int)
+      expansion.fill(NO_EVENT)
+      self._events = np.vstack((self._events, expansion))
 
-    self._events[note.start_step][voice] = note.pitch_with_offset
+    self._events[note.start_step][voice] = note.pitch
     self._events[note.start_step+1:note.end_step+1][...,voice] = NOTE_HOLD
 
   def _update_last_notes(self):
@@ -124,13 +118,7 @@ class PolyphonicSequence(object):
       self._last_notes.resize(self._events.shape[1])
 
     for i, note in enumerate(self._events[self._current_step]):
-      if note == NO_EVENT:
-        # no note is active on this voice, keep the previous note
-        pass
-      elif note == NOTE_HOLD:
-        # last note is still held
-        pass
-      else:
+      if note >= 0:
         # new note is active on this voice
         self._last_notes[i] = note
 
@@ -139,7 +127,7 @@ class PolyphonicSequence(object):
     for voice_index, note in zip(voice_indices, notes):
       if note is None:
         continue
-      distance += abs(note.pitch_with_offset - self._last_notes[voice_index])
+      distance += abs(note.pitch - self._last_notes[voice_index])
     return distance
 
   def _next_new_voice_index(self):
