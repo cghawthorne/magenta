@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Utility functions for creating polyphonic training datasets.
-
-Use extract_melodies to extract monophonic melodies from a NoteSequence proto.
-"""
+"""Utility functions for creating polyphonic training datasets. """
 
 import logging
 import math
@@ -40,52 +37,15 @@ class MultipleMidiProgramsException(Exception):
 Note = namedtuple('Note', ['pitch', 'start_step', 'end_step'])
 
 class PolyphonicSequence(object):
-  """Stores a quantized stream of monophonic melody events.
-
-  Melody is an intermediate representation that all melody models
-  can use. NoteSequence proto to melody code will do work to align notes
-  and extract monophonic melodies. Model specific code just needs to
-  convert Melody to SequenceExample protos for TensorFlow.
-
-  Melody implements an iterable object. Simply iterate to retrieve
-  the melody events.
-
-  Melody events are integers in range [-2, 127] (inclusive),
-  where negative values are the special event events: NOTE_OFF, and NO_EVENT.
-  Non-negative values [0, 127] are note-on events for that midi pitch. A note
-  starts at a non-negative value (that is the pitch), and is held through
-  subsequent NO_EVENT events until either another non-negative value is reached
-  (even if the pitch is the same as the previous note), or a NOTE_OFF event is
-  reached. A NOTE_OFF starts at least one step of silence, which continues
-  through NO_EVENT events until the next non-negative value.
-
-  NO_EVENT values are treated as default filler. Notes must be inserted
-  in ascending order by start time. Note end times will be truncated if the next
-  note overlaps.
-
-  Melodies can start at any non-zero time, and are shifted left so that the bar
-  containing the first note-on event is the first bar.
-
-  Attributes:
-    events: A python list of melody events which are integers. Melody events are
-        described above.
-    offset: When quantizing notes, this is the offset between indices in
-        `events` and time steps of incoming melody events. An offset is chosen
-        such that the first melody event is close to the beginning of `events`.
-    steps_per_bar: Number of steps in a bar (measure) of music.
-    last_on: Index of last note-on event added. This index will be within
-        the range of `events`.
-    last_off: Index of the NOTE_OFF event that belongs to the note-on event
-        at `last_on`. This index is likely not in the range of `events` unless
-        _write_all_notes was called.
-  """
+  """Stores a quantized stream of polyphonic events. """
 
   def __init__(self, note_sequence, steps_per_second=20):
-    """Construct an empty Melody.
+    """Construct a polyphonic sequence.
 
     Args:
-      steps_per_bar: How many time steps per bar of music. Melody needs to know
-          about bars to skip empty bars before the first note.
+      note_sequence: The NoteSequence to convert.
+      steps_per_second: Controls how many steps per second are used in
+          quantizing the music.
     """
     # Steps x Voices
     self._events = np.empty((0,0), dtype=int)
@@ -181,18 +141,8 @@ class PolyphonicSequence(object):
   def _add_note(self, note):
     """Adds the given note to the stream.
 
-    The previous note's end step will be changed to end before this note if
-    there is overlap.
-
-    The note is not added if `start_step` is before the start step of the
-    previously added note, or if `start_step` equals `end_step`.
-
     Args:
-      pitch: Midi pitch. An integer between 0 and 127 inclusive.
-      start_step: A non-zero integer step that the note begins on.
-      end_step: An integer step that the note ends on. The note is considered to
-          end at the onset of the end step. `end_step` must be greater than
-          `start_step`.
+      note: the Note to add.
     """
     assert(note.start_step >= self._current_step)
 

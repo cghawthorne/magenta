@@ -11,11 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Create basic RNN dataset from NoteSequence protos.
-
-This script will extract melodies from NoteSequence protos and save them to
-TensorFlow's SequenceExample protos for input to the basic RNN model.
-"""
+"""Create a dataset from NoteSequence protos. """
 
 import sequence
 import logging
