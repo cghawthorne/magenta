@@ -123,6 +123,9 @@ class PolyphonicSequence(object):
     self._events[note.start_step+1:note.end_step+1][...,voice] = NOTE_HOLD
 
   def _update_last_notes(self):
+    if self._events.shape[0] <= 0:
+      return
+
     # resize _last_notes if needed
     if self._last_notes.shape[0] < self._events.shape[1]:
       self._last_notes.resize(self._events.shape[1])

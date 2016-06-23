@@ -21,20 +21,11 @@ import sequence
 import logging
 import sys
 import tensorflow as tf
+from magenta.lib import note_sequence_io
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('input', None,
                            'TFRecord to read NoteSequence protos from.')
-tf.app.flags.DEFINE_string('train_output', None,
-                           'TFRecord to write SequenceExample protos to. '
-                           'Contains training set.')
-tf.app.flags.DEFINE_string('eval_output', None,
-                           'TFRecord to write SequenceExample protos to. '
-                           'Contains eval set. No eval set is produced if '
-                           'this flag is not set.')
-tf.app.flags.DEFINE_float('eval_ratio', 0.0,
-                          'Fraction of input to set asside for eval set. '
-                          'Partition is randomly selected.')
 
 def main(unused_argv):
   root = logging.getLogger()
@@ -43,11 +34,11 @@ def main(unused_argv):
   ch.setLevel(logging.INFO)
   root.addHandler(ch)
 
-  reader = note_sequence_io.note_sequence_record_iterator(sequences_file)
+  reader = note_sequence_io.note_sequence_record_iterator(FLAGS.input)
   input_count = 0
-  for sequence_data in reader:
-    polyphonic_sequence = sequence.PolyphonicSequence(sequence_data)
+  for note_sequence in reader:
     import pdb; pdb.set_trace()
+    polyphonic_sequence = sequence.PolyphonicSequence(note_sequence)
 
 if __name__ == "__main__":
   tf.app.run()

@@ -21,6 +21,7 @@ py_binary(
     deps = [
       ":sequence",
       ":one_hot_delta_codec",
+      "//magenta:note_sequence_io",
     ]
 )
 
