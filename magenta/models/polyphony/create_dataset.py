@@ -21,7 +21,9 @@ import sequence
 import logging
 import sys
 import tensorflow as tf
+import numpy as np
 from magenta.lib import note_sequence_io
+import one_hot_delta_codec
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('input', None,
@@ -35,10 +37,12 @@ def main(unused_argv):
   root.addHandler(ch)
 
   reader = note_sequence_io.note_sequence_record_iterator(FLAGS.input)
-  input_count = 0
+  np.set_printoptions(threshold=np.nan)
   for note_sequence in reader:
     polyphonic_sequence = sequence.PolyphonicSequence(note_sequence)
-    import pdb; pdb.set_trace()
+    one_hot = one_hot_delta_codec.encode(polyphonic_sequence)
+    print polyphonic_sequence.get_events()
+    #print one_hot
 
 if __name__ == "__main__":
   tf.app.run()
