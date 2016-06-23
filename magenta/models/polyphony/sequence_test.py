@@ -42,14 +42,12 @@ class PolyphonicSequenceTest(tf.test.TestCase):
   def testVoiceAssignmentNonZeroStart(self):
     note_sequence = test_helper.create_note_sequence([
       (51, .15, .2),
+      (61, .15, .2),
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     expected = np.array([
-        [-2],
-        [-2],
-        [-2],
-        [51],
-        [-1]])
+        [51, 61],
+        [-1, -1]])
 
     np.testing.assert_array_equal(expected, seq.get_events())
 

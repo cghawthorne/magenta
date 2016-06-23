@@ -236,9 +236,13 @@ class PolyphonicSequence(object):
         note.pitch,
         self._quantize(note.start_time),
         self._quantize(note.end_time)))
+
+    # flush any remaining notes
     self._write_current_step_notes()
 
-    # TODO: trim any empty space at beginning
+    # trim any leading silence
+    while (all(self._events[0] == NO_EVENT)):
+      self._events = np.delete(self._events, 0, 0)
 
   def get_events(self):
     return np.copy(self._events)
