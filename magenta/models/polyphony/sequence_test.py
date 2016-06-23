@@ -23,11 +23,11 @@ from magenta.protobuf import music_pb2
 class PolyphonicSequenceTest(tf.test.TestCase):
   def testVoiceAssignment(self):
     note_sequence = test_helper.create_note_sequence([
-      (50, 0, .1),
-      (60, 0, .1),
-      (40, .05, .15),
-      (61, .15, .2),
-      (51, .15, .2),
+      (50, 0, .15),
+      (60, 0, .15),
+      (40, .05, .2),
+      (61, .15, .25),
+      (51, .15, .25),
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     expected = np.array([
@@ -45,7 +45,21 @@ class PolyphonicSequenceTest(tf.test.TestCase):
       (61, .15, .2),
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
+    expected = np.array([[51, 61]])
+
+    np.testing.assert_array_equal(expected, seq.get_events())
+
+  def testSameStopAndStartTimes(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, 0, .1),
+      (60, 0, .1),
+      (61, .1, .2),
+      (51, .1, .2),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence)
     expected = np.array([
+        [50, 60],
+        [-1, -1],
         [51, 61],
         [-1, -1]])
 

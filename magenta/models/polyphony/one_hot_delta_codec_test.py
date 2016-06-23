@@ -24,11 +24,11 @@ from magenta.protobuf import music_pb2
 class OneHotDeltaCodecTest(tf.test.TestCase):
   def testEncoding(self):
     note_sequence = test_helper.create_note_sequence([
-      (50, 0, .1),
-      (60, 0, .1),
-      (70, .05, .15),
-      (61, .15, .2),
-      (49, .15, .2),
+      (50, 0, .15),
+      (60, 0, .15),
+      (70, .05, .2),
+      (61, .15, .25),
+      (49, .15, .25),
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
 

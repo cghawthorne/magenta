@@ -227,10 +227,12 @@ class PolyphonicSequence(object):
             'Got new program %s when active program is %s'
             % (note.program, active_program))
 
-      self._add_note(Note(
-        note.pitch,
-        self._quantize(note.start_time),
-        self._quantize(note.end_time)))
+      start_step = self._quantize(note.start_time)
+      # make stop step 1 less than the quantized end time, to allow a new note
+      # to start on the same voice at the same time, but check that we don't
+      # try to stop the note before it starts.
+      stop_step = max(start_step, self._quantize(note.end_time) - 1)
+      self._add_note(Note(note.pitch, start_step, stop_step))
 
     # flush any remaining notes
     self._write_current_step_notes()
