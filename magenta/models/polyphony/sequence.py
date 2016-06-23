@@ -173,14 +173,10 @@ class PolyphonicSequence(object):
         notes_to_assign.remove(note)
 
     # All the remaining voices will be new voices
-    # Sort to make the assignment order deterministic for unit tests
-    for note in sorted(notes_to_assign, key=lambda note: note.pitch):
+    while notes_to_assign:
       self._write_note_to_voice(
           self._next_new_voice_index(),
-          note)
-      notes_to_assign.remove(note)
-
-    assert(not notes_to_assign)
+          notes_to_assign.pop())
 
   def _add_note(self, note):
     """Adds the given note to the stream.
@@ -208,8 +204,7 @@ class PolyphonicSequence(object):
     self._current_step_notes.add(note)
 
   def _quantize(self, time):
-    # TODO: math.round?
-    return int(math.ceil((time * self._steps_per_second) - .5))
+    return int(round(time * self._steps_per_second))
 
   def _add_notes(self, notes):
     # TODO: filter out percussion notes
@@ -243,6 +238,12 @@ class PolyphonicSequence(object):
     # trim any leading silence
     while (all(self._events[0] == NO_EVENT)):
       self._events = np.delete(self._events, 0, 0)
+
+    # sort voices
+    mean_notes = [
+        np.mean(self._events[:,voice][self._events[:,voice] >= 0]) for
+        voice in range(self._events.shape[1])]
+    self._events = self._events[:, np.argsort(mean_notes)]
 
   def get_events(self):
     return np.copy(self._events)

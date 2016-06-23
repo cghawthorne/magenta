@@ -37,8 +37,8 @@ def main(unused_argv):
   reader = note_sequence_io.note_sequence_record_iterator(FLAGS.input)
   input_count = 0
   for note_sequence in reader:
-    import pdb; pdb.set_trace()
     polyphonic_sequence = sequence.PolyphonicSequence(note_sequence)
+    import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
   tf.app.run()

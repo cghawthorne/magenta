@@ -31,11 +31,11 @@ class PolyphonicSequenceTest(tf.test.TestCase):
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     expected = np.array([
-        [50, 60,  -2],
-        [-1, -1, 40],
+        [-2, 50, 60],
+        [40, -1, -1],
         [-1, -1, -1],
-        [51, 61, -1],
-        [-1, -1,  -2]])
+        [-1, 51, 61],
+        [-2, -1, -1]])
 
     np.testing.assert_array_equal(expected, seq.get_events())
 

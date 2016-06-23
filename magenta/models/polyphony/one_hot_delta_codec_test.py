@@ -26,7 +26,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     note_sequence = test_helper.create_note_sequence([
       (50, 0, .1),
       (60, 0, .1),
-      (40, .05, .15),
+      (70, .05, .15),
       (61, .15, .2),
       (49, .15, .2),
     ])
@@ -35,7 +35,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     encoded = one_hot_delta_codec.encode(seq)
 
     expected = np.zeros_like(encoded)
-    max_delta = 61 - 40
+    max_delta = 70 - 49
     delta_offset = sequence.NUM_SPECIAL_EVENTS + max_delta
     no_event = sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT
     note_hold = sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD
