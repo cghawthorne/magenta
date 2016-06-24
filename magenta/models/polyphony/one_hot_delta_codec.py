@@ -15,6 +15,7 @@
 
 import sequence
 import numpy as np
+import itertools
 
 def encode(polyphonic_sequence):
   seq = polyphonic_sequence.get_events()
@@ -26,26 +27,44 @@ def encode(polyphonic_sequence):
   # one-hot array.
   max_delta = (
       seq_without_special_events.max() - seq_without_special_events.min())
-  one_hot_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
+  one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
+
+  voice_pairings = list(itertools.combinations(range(seq.shape[1]), 2))
+  one_hot_voice_relation_length = max_delta + 1
+
+  one_hot_length = ((one_hot_delta_length * seq.shape[1]) +
+    (one_hot_voice_relation_length * len(voice_pairings)))
 
   # TODO: generalize to work with inputs that have different numbers of voices
-  inputs = np.empty(
-      (seq.shape[0], seq.shape[1], one_hot_length),
-      dtype=float)
-  inputs.fill(sequence.NO_EVENT + sequence.NUM_SPECIAL_EVENTS)
+  inputs = np.zeros((seq.shape[0], one_hot_length), dtype=float)
 
   last_notes = [None] * seq.shape[1]
-  for i in range(seq.shape[0]):
-    for voice, pitch in enumerate(seq[i]):
+  active_notes = [None] * seq.shape[1]
+  for step in range(seq.shape[0]):
+    for voice, pitch in enumerate(seq[step]):
+      if pitch == sequence.NO_EVENT:
+        active_notes[voice] = None
+      elif pitch >= 0:
+        active_notes[voice] = pitch
+
+      offset = voice * one_hot_delta_length
       if pitch < 0:
-        inputs[i][voice][pitch + sequence.NUM_SPECIAL_EVENTS] = 1
+        inputs[step][offset + pitch + sequence.NUM_SPECIAL_EVENTS] = 1
       else:
         delta = 0
         if last_notes[voice] is not None:
           delta = pitch - last_notes[voice]
 
         last_notes[voice] = pitch
-        inputs[i][voice][max_delta + delta + sequence.NUM_SPECIAL_EVENTS] = 1
+        one_hot_delta = max_delta + delta
+        inputs[step][offset + one_hot_delta + sequence.NUM_SPECIAL_EVENTS] = 1
+    for i, voice_pair in enumerate(voice_pairings):
+      if not active_notes[voice_pair[0]] or not active_notes[voice_pair[1]]:
+        continue
+      distance = abs(active_notes[voice_pair[0]] - active_notes[voice_pair[1]])
+      offset = ((seq.shape[1] * one_hot_delta_length) +
+          (i * one_hot_voice_relation_length))
+      inputs[step][offset + distance] = 1
 
   # TODO: how to generate multiple labels per step?
   return inputs 
