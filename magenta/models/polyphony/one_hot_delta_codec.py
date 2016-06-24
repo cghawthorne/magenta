@@ -30,7 +30,7 @@ def encode(polyphonic_sequence):
   one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
 
   voice_pairings = list(itertools.combinations(range(seq.shape[1]), 2))
-  one_hot_voice_relation_length = max_delta + 1
+  one_hot_voice_relation_length = 12 + max_delta + 1
 
   one_hot_length = ((one_hot_delta_length * seq.shape[1]) +
     (one_hot_voice_relation_length * len(voice_pairings)))
@@ -64,7 +64,10 @@ def encode(polyphonic_sequence):
       distance = abs(active_notes[voice_pair[0]] - active_notes[voice_pair[1]])
       offset = ((seq.shape[1] * one_hot_delta_length) +
           (i * one_hot_voice_relation_length))
-      inputs[step][offset + distance] = 1
+      # distance ignoring octaves
+      inputs[step][offset + (distance % 12)] = 1
+      # absolute distance
+      inputs[step][offset + 12 + distance] = 1
 
   # TODO: how to generate multiple labels per step?
   return inputs 

@@ -43,7 +43,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     exp = np.zeros_like(encoded)
     max_delta = 70 - 49
     one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
-    one_hot_voice_relation_length = max_delta + 1
+    one_hot_voice_rel_len = 12 + max_delta + 1
     no_event = sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT
     note_hold = sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD
 
@@ -54,29 +54,40 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     exp[0][0 * one_hot_delta_length + delta_offset + 0] = 1
     exp[0][1 * one_hot_delta_length + delta_offset + 0] = 1
     exp[0][2 * one_hot_delta_length + no_event] = 1
-    exp[0][voices_offset + one_hot_voice_relation_length * 0 + 10] = 1 # [0,1]
+    exp[0][voices_offset + one_hot_voice_rel_len * 0 + 10] = 1 # [0,1] oct
+    exp[0][voices_offset + one_hot_voice_rel_len * 0 + 12 + 10] = 1 # [0,1]
     exp[1][0 * one_hot_delta_length + note_hold] = 1
     exp[1][1 * one_hot_delta_length + note_hold] = 1
     exp[1][2 * one_hot_delta_length + delta_offset + 0] = 1
-    exp[1][voices_offset + one_hot_voice_relation_length * 0 + 10] = 1 # [0,1]
-    exp[1][voices_offset + one_hot_voice_relation_length * 1 + 20] = 1 # [0,2]
-    exp[1][voices_offset + one_hot_voice_relation_length * 2 + 10] = 1 # [1,2]
+    exp[1][voices_offset + one_hot_voice_rel_len * 0 + 10] = 1 # [0,1] oct
+    exp[1][voices_offset + one_hot_voice_rel_len * 0 + 12 + 10] = 1 # [0,1]
+    exp[1][voices_offset + one_hot_voice_rel_len * 1 + 8] = 1 # [0,2] oct
+    exp[1][voices_offset + one_hot_voice_rel_len * 1 + 12 + 20] = 1 # [0,2]
+    exp[1][voices_offset + one_hot_voice_rel_len * 2 + 10] = 1 # [1,2] oct
+    exp[1][voices_offset + one_hot_voice_rel_len * 2 + 12 + 10] = 1 # [1,2]
     exp[2][0 * one_hot_delta_length + note_hold] = 1
     exp[2][1 * one_hot_delta_length + note_hold] = 1
     exp[2][2 * one_hot_delta_length + note_hold] = 1
-    exp[2][voices_offset + one_hot_voice_relation_length * 0 + 10] = 1 # [0,1]
-    exp[2][voices_offset + one_hot_voice_relation_length * 1 + 20] = 1 # [0,2]
-    exp[2][voices_offset + one_hot_voice_relation_length * 2 + 10] = 1 # [1,2]
+    exp[2][voices_offset + one_hot_voice_rel_len * 0 + 10] = 1 # [0,1] oct
+    exp[2][voices_offset + one_hot_voice_rel_len * 0 + 12 + 10] = 1 # [0,1]
+    exp[2][voices_offset + one_hot_voice_rel_len * 1 + 8] = 1 # [0,2] oct
+    exp[2][voices_offset + one_hot_voice_rel_len * 1 + 12 + 20] = 1 # [0,2]
+    exp[2][voices_offset + one_hot_voice_rel_len * 2 + 10] = 1 # [1,2] oct
+    exp[2][voices_offset + one_hot_voice_rel_len * 2 + 12 + 10] = 1 # [1,2]
     exp[3][0 * one_hot_delta_length + delta_offset - 1] = 1
     exp[3][1 * one_hot_delta_length + delta_offset + 1] = 1
     exp[3][2 * one_hot_delta_length + note_hold] = 1
-    exp[3][voices_offset + one_hot_voice_relation_length * 0 + 12] = 1 # [0,1]
-    exp[3][voices_offset + one_hot_voice_relation_length * 1 + 21] = 1 # [0,2]
-    exp[3][voices_offset + one_hot_voice_relation_length * 2 + 9] = 1 # [1,2]
+    exp[3][voices_offset + one_hot_voice_rel_len * 0 + 0] = 1 # [0,1] oct
+    exp[3][voices_offset + one_hot_voice_rel_len * 0 + 12 + 12] = 1 # [0,1]
+    exp[3][voices_offset + one_hot_voice_rel_len * 1 + 9] = 1 # [0,2] oct
+    exp[3][voices_offset + one_hot_voice_rel_len * 1 + 12 + 21] = 1 # [0,2]
+    exp[3][voices_offset + one_hot_voice_rel_len * 2 + 9] = 1 # [1,2] oct
+    exp[3][voices_offset + one_hot_voice_rel_len * 2 + 12 + 9] = 1 # [1,2]
     exp[4][0 * one_hot_delta_length + note_hold] = 1
     exp[4][1 * one_hot_delta_length + note_hold] = 1
     exp[4][2 * one_hot_delta_length + no_event] = 1
-    exp[4][voices_offset + one_hot_voice_relation_length * 0 + 12] = 1 # [0,1]
+    exp[4][voices_offset + one_hot_voice_rel_len * 0 + 0] = 1 # [0,1] oct
+    exp[4][voices_offset + one_hot_voice_rel_len * 0 + 12 + 12] = 1 # [0,1]
 
     np.testing.assert_array_equal(exp, encoded)
 
