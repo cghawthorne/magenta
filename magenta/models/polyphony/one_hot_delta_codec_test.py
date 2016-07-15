@@ -38,14 +38,36 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     #        [49, 61, -1],
     #        [-1, -1, -2]])
 
-    encoded = one_hot_delta_codec.encode(seq)
+    encoded, labels = one_hot_delta_codec.encode(seq)
+
+    exp_labels = np.zeros_like(labels)
+
+    no_event = sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT
+    note_hold = sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD
+
+    label_note_offset = sequence.NUM_SPECIAL_EVENTS
+
+    exp_labels[0][0] = note_hold
+    exp_labels[0][1] = note_hold
+    exp_labels[0][2] = label_note_offset + 70
+    exp_labels[1][0] = note_hold
+    exp_labels[1][1] = note_hold
+    exp_labels[1][2] = note_hold
+    exp_labels[2][0] = label_note_offset + 49
+    exp_labels[2][1] = label_note_offset + 61
+    exp_labels[2][2] = note_hold
+    exp_labels[3][0] = note_hold
+    exp_labels[3][1] = note_hold
+    exp_labels[3][2] = no_event
+    exp_labels[4][0] = no_event
+    exp_labels[4][1] = no_event
+    exp_labels[4][2] = no_event
+    np.testing.assert_array_equal(exp_labels, labels)
 
     exp = np.zeros_like(encoded)
     max_delta = 70 - 49
     one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
     one_hot_voice_rel_len = 12 + max_delta + 1
-    no_event = sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT
-    note_hold = sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD
 
     delta_offset = sequence.NUM_SPECIAL_EVENTS + max_delta
     voices_offset = 3 * one_hot_delta_length

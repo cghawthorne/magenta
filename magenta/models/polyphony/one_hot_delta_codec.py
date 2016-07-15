@@ -37,6 +37,9 @@ def encode(polyphonic_sequence):
 
   # TODO: generalize to work with inputs that have different numbers of voices
   inputs = np.zeros((seq.shape[0], one_hot_length), dtype=float)
+  # TODO: should i use pitches for the labels or deltas?
+  # labels is steps x voices and holds pitches and special events
+  labels = np.zeros((seq.shape[0], seq.shape[1]), dtype=int)
 
   last_notes = [None] * seq.shape[1]
   active_notes = [None] * seq.shape[1]
@@ -58,6 +61,11 @@ def encode(polyphonic_sequence):
         last_notes[voice] = pitch
         one_hot_delta = max_delta + delta
         inputs[step][offset + one_hot_delta + sequence.NUM_SPECIAL_EVENTS] = 1
+
+      if step > 0:
+        labels[step - 1][voice] = pitch + sequence.NUM_SPECIAL_EVENTS
+      if step == seq.shape[0] - 1:
+        labels[step][voice] = sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT
     for i, voice_pair in enumerate(voice_pairings):
       if not active_notes[voice_pair[0]] or not active_notes[voice_pair[1]]:
         continue
@@ -69,5 +77,21 @@ def encode(polyphonic_sequence):
       # absolute distance
       inputs[step][offset + 12 + distance] = 1
 
-  # TODO: how to generate multiple labels per step?
-  return inputs 
+  return inputs, labels
+
+def as_sequence_example(polyphonic_sequence):
+  inputs, labels = encode(polyphonic_sequence)
+
+  input_features = [
+      tf.train.Feature(float_list=tf.train.FloatList(value=input_))
+      for input_ in inputs]
+  label_features = [
+      tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))
+      for label in labels]
+  feature_list = {
+      'inputs': tf.train.FeatureList(feature=input_features),
+      'labels': tf.train.FeatureList(feature=label_features)
+  }
+  feature_lists = tf.train.FeatureLists(feature_list=feature_list)
+  return tf.train.SequenceExample(feature_lists=feature_lists)
+

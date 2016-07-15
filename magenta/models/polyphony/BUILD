@@ -38,7 +38,7 @@ py_library(
     name = "sequence",
     srcs = ["sequence.py"],
     deps = [
-    	"//magenta:music_py_pb2"
+    	"//magenta/protobuf:music_py_pb2"
     ],
 )
 
@@ -46,7 +46,7 @@ py_library(
     name = "test_helper",
     srcs = ["test_helper.py"],
     deps = [
-    	"//magenta:music_py_pb2"
+    	"//magenta/protobuf:music_py_pb2"
     ],
 )
 
