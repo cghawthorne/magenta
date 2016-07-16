@@ -22,7 +22,6 @@ class EncodingException(Exception):
 
 def encode(polyphonic_sequence, max_voices, max_note_delta):
   #TODO:
-  # Add ability to work with 1 to N voices
   # Add float to input that represents current pitch/128 so it can learn how
   # relatively high/low it is.
   # Output could be:
@@ -44,17 +43,19 @@ def encode(polyphonic_sequence, max_voices, max_note_delta):
     (one_hot_voice_relation_length * len(voice_pairings)))
 
   inputs = np.zeros((seq.shape[0], one_hot_length), dtype=float)
-  # labels for upper voices are how high above the lowest voice they are or a
-  # special event (offset by NUM_SPECIAL_EVENTS)
+  # labels for upper voices are how high above or below the lowest voice they
+  # are or a special event (offset by NUM_SPECIAL_EVENTS). if needed, look ahead
+  # to find out what the first bass note will be.
   # label for the lowest voice is how much it moved up or down or special event.
   # number space is NUM_SPECIAL_EVENTS, max_note_delta (downward movement), no
   # movement, max_note_delta (upward movement)
   labels = np.zeros((seq.shape[0], max_voices), dtype=int)
 
-  last_notes = [None] * seq.shape[1]
-  active_notes = [None] * seq.shape[1]
+  last_notes = [None] * max_voices
+  active_notes = [None] * max_voices
   for step in range(seq.shape[0]):
-    for voice, pitch in enumerate(seq[step]):
+    for seq_voice, pitch in enumerate(seq[step]):
+      voice = int(round(seq_voice * (float(max_voices-1)/(seq.shape[1]-1))))
       if pitch == sequence.NO_EVENT:
         active_notes[voice] = None
       elif pitch >= 0:
@@ -84,7 +85,7 @@ def encode(polyphonic_sequence, max_voices, max_note_delta):
       if not active_notes[voice_pair[0]] or not active_notes[voice_pair[1]]:
         continue
       distance = abs(active_notes[voice_pair[0]] - active_notes[voice_pair[1]])
-      offset = ((seq.shape[1] * one_hot_delta_length) +
+      offset = ((max_voices * one_hot_delta_length) +
           (i * one_hot_voice_relation_length))
       # distance ignoring octaves
       inputs[step][offset + (distance % 12)] = 1
