@@ -17,29 +17,39 @@ import sequence
 import numpy as np
 import itertools
 
-def encode(polyphonic_sequence):
+class EncodingException(Exception):
+  pass
+
+def encode(polyphonic_sequence, max_voices, max_note_delta):
+  #TODO:
+  # Add ability to work with 1 to N voices
+  # Add float to input that represents current pitch/128 so it can learn how
+  # relatively high/low it is.
+  # Output could be:
+  #   how far up or down to move the lowest voice
+  #   how far above the low voice each of the voices are
   seq = polyphonic_sequence.get_events()
 
-  # TODO: generalize to work with inputs that have different high/low notes
-  seq_without_special_events = seq[seq >= 0]
-  # TODO: could be more clever about calculating max_delta so we actually find
-  # what the largest change between notes is, resulting in a probably-smaller
-  # one-hot array.
-  max_delta = (
-      seq_without_special_events.max() - seq_without_special_events.min())
-  one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
+  if seq.shape[1] > max_voices:
+    raise EncodingException("Too many voices: %d > max of %d" %
+                            (seq.shape[1], max_voices))
 
-  voice_pairings = list(itertools.combinations(range(seq.shape[1]), 2))
-  one_hot_voice_relation_length = 12 + max_delta + 1
+  one_hot_delta_length = (max_note_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
+  voice_pairings = list(itertools.combinations(range(max_voices), 2))
+  one_hot_voice_relation_length = 12 + max_note_delta + 1
+  # TODO add pitch floats
+  #pitch_floats_length = max_voices
 
-  one_hot_length = ((one_hot_delta_length * seq.shape[1]) +
+  one_hot_length = ((one_hot_delta_length * max_voices) +
     (one_hot_voice_relation_length * len(voice_pairings)))
 
-  # TODO: generalize to work with inputs that have different numbers of voices
   inputs = np.zeros((seq.shape[0], one_hot_length), dtype=float)
-  # TODO: should i use pitches for the labels or deltas?
-  # labels is steps x voices and holds pitches and special events
-  labels = np.zeros((seq.shape[0], seq.shape[1]), dtype=int)
+  # labels for upper voices are how high above the lowest voice they are or a
+  # special event (offset by NUM_SPECIAL_EVENTS)
+  # label for the lowest voice is how much it moved up or down or special event.
+  # number space is NUM_SPECIAL_EVENTS, max_note_delta (downward movement), no
+  # movement, max_note_delta (upward movement)
+  labels = np.zeros((seq.shape[0], max_voices), dtype=int)
 
   last_notes = [None] * seq.shape[1]
   active_notes = [None] * seq.shape[1]
@@ -58,8 +68,12 @@ def encode(polyphonic_sequence):
         if last_notes[voice] is not None:
           delta = pitch - last_notes[voice]
 
+        if delta > max_note_delta:
+          raise EncodingException("Note delta too great: %d > max of %d" %
+                                  (delta, max_note_delta))
+
         last_notes[voice] = pitch
-        one_hot_delta = max_delta + delta
+        one_hot_delta = max_note_delta + delta
         inputs[step][offset + one_hot_delta + sequence.NUM_SPECIAL_EVENTS] = 1
 
       if step > 0:

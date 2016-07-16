@@ -38,7 +38,8 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     #        [49, 61, -1],
     #        [-1, -1, -2]])
 
-    encoded, labels = one_hot_delta_codec.encode(seq)
+    max_delta = 70 - 49
+    encoded, labels = one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=max_delta)
 
     exp_labels = np.zeros_like(labels)
 
@@ -65,7 +66,6 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     np.testing.assert_array_equal(exp_labels, labels)
 
     exp = np.zeros_like(encoded)
-    max_delta = 70 - 49
     one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
     one_hot_voice_rel_len = 12 + max_delta + 1
 
@@ -112,6 +112,8 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     exp[4][voices_offset + one_hot_voice_rel_len * 0 + 12 + 12] = 1 # [0,1]
 
     np.testing.assert_array_equal(exp, encoded)
+
+# TODO: test max delta
 
 if __name__ == '__main__':
     tf.test.main()
