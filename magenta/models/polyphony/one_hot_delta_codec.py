@@ -22,8 +22,6 @@ class EncodingException(Exception):
 
 def encode(polyphonic_sequence, max_voices, max_note_delta):
   #TODO:
-  # Add float to input that represents current pitch/128 so it can learn how
-  # relatively high/low it is.
   # Output could be:
   #   how far up or down to move the lowest voice
   #   how far above the low voice each of the voices are
@@ -36,10 +34,9 @@ def encode(polyphonic_sequence, max_voices, max_note_delta):
   one_hot_delta_length = (max_note_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
   voice_pairings = list(itertools.combinations(range(max_voices), 2))
   one_hot_voice_relation_length = 12 + max_note_delta + 1
-  # TODO add pitch floats
-  #pitch_floats_length = max_voices
+  pitch_floats_length = max_voices
 
-  one_hot_length = ((one_hot_delta_length * max_voices) +
+  one_hot_length = ((one_hot_delta_length * max_voices) + pitch_floats_length +
     (one_hot_voice_relation_length * len(voice_pairings)))
 
   inputs = np.zeros((seq.shape[0], one_hot_length), dtype=float)
@@ -77,6 +74,15 @@ def encode(polyphonic_sequence, max_voices, max_note_delta):
         one_hot_delta = max_note_delta + delta
         inputs[step][offset + one_hot_delta + sequence.NUM_SPECIAL_EVENTS] = 1
 
+      # Add floating point pitch information
+      if pitch >= 0 or pitch == sequence.NOTE_HOLD:
+        inputs[step][(max_voices * one_hot_delta_length) + voice] = 1 + (
+            last_notes[voice] / 127.0)
+      else:
+        # No active pitch, so leave it 0
+        pass
+
+      # Update labels
       if step > 0:
         labels[step - 1][voice] = pitch + sequence.NUM_SPECIAL_EVENTS
       if step == seq.shape[0] - 1:
@@ -85,7 +91,7 @@ def encode(polyphonic_sequence, max_voices, max_note_delta):
       if not active_notes[voice_pair[0]] or not active_notes[voice_pair[1]]:
         continue
       distance = abs(active_notes[voice_pair[0]] - active_notes[voice_pair[1]])
-      offset = ((max_voices * one_hot_delta_length) +
+      offset = ((max_voices * one_hot_delta_length) + pitch_floats_length +
           (i * one_hot_voice_relation_length))
       # distance ignoring octaves
       inputs[step][offset + (distance % 12)] = 1
