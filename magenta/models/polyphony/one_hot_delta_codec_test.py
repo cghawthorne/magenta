@@ -165,6 +165,18 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     self.assertTrue((labels[:,[0,3,6,9]] != 0).any())
     self.assertTrue((labels[:,[1,2,4,5,7,8]] == 0).all())
 
+  def testVoicePositionOneVoice(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, 0, .15),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence)
+    encoded, labels = one_hot_delta_codec.encode(
+        seq, max_voices=10, max_note_delta=127)
+
+    # 1 voice into 10 columns. Only column 0 should have data.
+    self.assertTrue((labels[:,[0]] != 0).any())
+    self.assertTrue((labels[:,[1,2,3,4,5,6,7,8,9]] == 0).all())
+
 
 if __name__ == '__main__':
     tf.test.main()

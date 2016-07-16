@@ -22,6 +22,8 @@ class EncodingException(Exception):
 
 def encode(polyphonic_sequence, max_voices, max_note_delta):
   #TODO:
+  # fill in no event for unused labels and inputs
+  # add correct label data
   # Output could be:
   #   how far up or down to move the lowest voice
   #   how far above the low voice each of the voices are
@@ -48,11 +50,16 @@ def encode(polyphonic_sequence, max_voices, max_note_delta):
   # movement, max_note_delta (upward movement)
   labels = np.zeros((seq.shape[0], max_voices), dtype=int)
 
+  first_bass_note = seq[np.where(seq[:,[0]] >= 0)[0][0]][0]
   last_notes = [None] * max_voices
   active_notes = [None] * max_voices
   for step in range(seq.shape[0]):
     for seq_voice, pitch in enumerate(seq[step]):
-      voice = int(round(seq_voice * (float(max_voices-1)/(seq.shape[1]-1))))
+      # Determine voice position
+      voice = 0
+      if seq_voice > 0:
+        voice = int(round(seq_voice * (float(max_voices-1)/(seq.shape[1]-1))))
+
       if pitch == sequence.NO_EVENT:
         active_notes[voice] = None
       elif pitch >= 0:
