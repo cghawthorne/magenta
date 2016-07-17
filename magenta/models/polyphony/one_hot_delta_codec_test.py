@@ -39,24 +39,25 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     #        [-1, -1, -2]])
 
     max_delta = 70 - 49
+    max_intervoice_interval = 25
     encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=3, max_note_delta=max_delta)
+        seq, max_voices=3, max_note_delta=max_delta,
+        max_intervoice_interval=max_intervoice_interval)
 
     exp_labels = np.zeros_like(labels)
 
-    no_event = sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT
-    note_hold = sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD
-
-    label_note_offset = sequence.NUM_SPECIAL_EVENTS
+    se = sequence.NUM_SPECIAL_EVENTS
+    no_event = se + sequence.NO_EVENT
+    note_hold = se + sequence.NOTE_HOLD
 
     exp_labels[0][0] = note_hold
     exp_labels[0][1] = note_hold
-    exp_labels[0][2] = label_note_offset + 70
+    exp_labels[0][2] = se + max_intervoice_interval + 70 - 50
     exp_labels[1][0] = note_hold
     exp_labels[1][1] = note_hold
     exp_labels[1][2] = note_hold
-    exp_labels[2][0] = label_note_offset + 49
-    exp_labels[2][1] = label_note_offset + 61
+    exp_labels[2][0] = se + max_delta + -1
+    exp_labels[2][1] = se + max_intervoice_interval + 61 - 49
     exp_labels[2][2] = note_hold
     exp_labels[3][0] = note_hold
     exp_labels[3][1] = note_hold
@@ -128,6 +129,51 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
 
     np.testing.assert_array_equal(exp, encoded)
 
+  def testLabelEncodingWithDelayedLowestVoiceEntry(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, .05, .15),
+      (60, 0, .15),
+      (70, .05, .2),
+      (61, .15, .25),
+      (49, .15, .25),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence)
+    # seq.get_events() =
+    # array([[-2, 60, -2],
+    #        [50, -1, 70],
+    #        [-1, -1, -1],
+    #        [49, 61, -1],
+    #        [-1, -1, -2]])
+
+    max_delta = 70 - 49
+    max_intervoice_interval = 25
+    encoded, labels = one_hot_delta_codec.encode(
+        seq, max_voices=3, max_note_delta=max_delta,
+        max_intervoice_interval=max_intervoice_interval)
+
+    exp_labels = np.zeros_like(labels)
+
+    se = sequence.NUM_SPECIAL_EVENTS
+    no_event = se + sequence.NO_EVENT
+    note_hold = se + sequence.NOTE_HOLD
+
+    exp_labels[0][0] = se + max_delta + 0
+    exp_labels[0][1] = note_hold
+    exp_labels[0][2] = se + max_intervoice_interval + 70 - 50
+    exp_labels[1][0] = note_hold
+    exp_labels[1][1] = note_hold
+    exp_labels[1][2] = note_hold
+    exp_labels[2][0] = se + max_delta + -1
+    exp_labels[2][1] = se + max_intervoice_interval + 61 - 49
+    exp_labels[2][2] = note_hold
+    exp_labels[3][0] = note_hold
+    exp_labels[3][1] = note_hold
+    exp_labels[3][2] = no_event
+    exp_labels[4][0] = no_event
+    exp_labels[4][1] = no_event
+    exp_labels[4][2] = no_event
+    np.testing.assert_array_equal(exp_labels, labels)
+
   def testMaxVoices(self):
     note_sequence = test_helper.create_note_sequence([
       (50, 0, .15),
@@ -136,7 +182,8 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
-      one_hot_delta_codec.encode(seq, max_voices=2, max_note_delta=127)
+      one_hot_delta_codec.encode(seq, max_voices=2, max_note_delta=127,
+          max_intervoice_interval=100)
 
   def testMaxNoteDelta(self):
     note_sequence = test_helper.create_note_sequence([
@@ -146,7 +193,20 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
-      one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=10)
+      one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=10,
+          max_intervoice_interval=100)
+
+  def testMaxIntervoiceInterval(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, 0, 2),
+      (55, 0, 2),
+      (50, 3, 4),
+      (55, 3, 4),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence)
+    with self.assertRaises(one_hot_delta_codec.EncodingException):
+      one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=127,
+          max_intervoice_interval=4)
 
   def testVoicePosition(self):
     note_sequence = test_helper.create_note_sequence([
@@ -159,7 +219,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=10, max_note_delta=127)
+        seq, max_voices=10, max_note_delta=127, max_intervoice_interval=100)
 
     # 4 voices into 10 columns. Only columns 0, 2, 5, and 9 should have data.
     self.assertTrue((labels[:,[0,3,6,9]] != 0).any())
@@ -171,7 +231,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     ])
     seq = sequence.PolyphonicSequence(note_sequence)
     encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=10, max_note_delta=127)
+        seq, max_voices=10, max_note_delta=127, max_intervoice_interval=100)
 
     # 1 voice into 10 columns. Only column 0 should have data.
     self.assertTrue((labels[:,[0]] != 0).any())
