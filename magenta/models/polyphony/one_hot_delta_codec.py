@@ -31,7 +31,7 @@ def encode(
 
   one_hot_delta_length = (max_note_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
   voice_pairings = list(itertools.combinations(range(max_voices), 2))
-  one_hot_voice_relation_length = 12 + max_note_delta + 1
+  one_hot_voice_relation_length = 12 + max_intervoice_interval + 1
   pitch_floats_length = max_voices
 
   one_hot_length = ((one_hot_delta_length * max_voices) + pitch_floats_length +
@@ -112,6 +112,10 @@ def encode(
       if not active_notes[voice_pair[0]] or not active_notes[voice_pair[1]]:
         continue
       distance = abs(active_notes[voice_pair[0]] - active_notes[voice_pair[1]])
+      if distance > max_intervoice_interval:
+        raise EncodingException(
+            "Intervoice interval too great: %d > max of %d" %
+            (distance, max_intervoice_interval))
       offset = ((max_voices * one_hot_delta_length) + pitch_floats_length +
           (i * one_hot_voice_relation_length))
       # distance ignoring octaves

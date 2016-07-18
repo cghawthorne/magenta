@@ -29,7 +29,7 @@ class PolyphonicSequenceTest(tf.test.TestCase):
       (61, .15, .25),
       (51, .15, .25),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     expected = np.array([
         [-2, 50, 60],
         [40, -1, -1],
@@ -44,7 +44,7 @@ class PolyphonicSequenceTest(tf.test.TestCase):
       (51, .15, .2),
       (61, .15, .2),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     expected = np.array([[51, 61]])
 
     np.testing.assert_array_equal(expected, seq.get_events())
@@ -56,7 +56,7 @@ class PolyphonicSequenceTest(tf.test.TestCase):
       (61, .1, .2),
       (51, .1, .2),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     expected = np.array([
         [50, 60],
         [-1, -1],

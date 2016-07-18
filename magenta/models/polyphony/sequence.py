@@ -39,14 +39,17 @@ Note = namedtuple('Note', ['pitch', 'start_step', 'end_step'])
 class PolyphonicSequence(object):
   """Stores a quantized stream of polyphonic events. """
 
-  def __init__(self, note_sequence, steps_per_second=20):
+  def __init__(self, note_sequence, steps_per_second=20, max_start_step=4000):
     """Construct a polyphonic sequence.
 
     Args:
       note_sequence: The NoteSequence to convert.
       steps_per_second: Controls how many steps per second are used in
           quantizing the music.
+          120 bpm means 16 32nd notes per second, so 20 steps per second
+          supports slightly higher resolution than 32nd notes at 120bpm.
     """
+    self._max_start_step = max_start_step
     # Steps x Voices
     self._events = np.empty((0,0), dtype=int)
     self._last_notes = np.empty((0), dtype=int)
@@ -72,10 +75,12 @@ class PolyphonicSequence(object):
         dtype=int)
       expansion.fill(NO_EVENT)
       self._events = np.hstack((self._events, expansion))
-    if self._events.shape[0] <= note.end_step:
+    while self._events.shape[0] <= note.end_step+1:
+      # Resizing is expensive, double the number of steps.
+      # We'll trim it at the end.
       expansion = np.empty(
-        (note.end_step - self._events.shape[0] + 1, self._events.shape[1]),
-        dtype=int)
+          (max(10, self._events.shape[0]), self._events.shape[1]),
+          dtype=int)
       expansion.fill(NO_EVENT)
       self._events = np.vstack((self._events, expansion))
 
@@ -178,11 +183,14 @@ class PolyphonicSequence(object):
             % (note.program, active_program))
 
       start_step = self._quantize(note.start_time)
+      if start_step > self._max_start_step:
+        break
       # make stop step 1 less than the quantized end time, to allow a new note
       # to start on the same voice at the same time, but check that we don't
       # try to stop the note before it starts.
       stop_step = max(start_step, self._quantize(note.end_time) - 1)
       self._add_note(Note(note.pitch, start_step, stop_step))
+
 
     # flush any remaining notes
     self._write_current_step_notes()
@@ -190,6 +198,10 @@ class PolyphonicSequence(object):
     # trim any leading silence
     while (all(self._events[0] == NO_EVENT)):
       self._events = np.delete(self._events, 0, 0)
+
+    # trim any trailing silence
+    while (all(self._events[-1] == NO_EVENT)):
+      self._events = np.delete(self._events, -1, 0)
 
     # sort voices
     mean_notes = [

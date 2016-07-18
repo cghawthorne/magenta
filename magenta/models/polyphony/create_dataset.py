@@ -78,14 +78,20 @@ def main(unused_argv):
   eval_output_count = 0
   tf.logging.info('Extracting polyphonic sequences...')
   for sequence_data in reader:
+    tf.logging.info("Parsing data from %s" % (sequence_data.filename))
     try:
+      tf.logging.info("Creating polyphonic sequence...")
       polyphonic_sequence = sequence.PolyphonicSequence(sequence_data)
+      events = polyphonic_sequence.get_events()
+      tf.logging.info("Got sequence of length %d with %d voices" % (
+          events.shape[0], events.shape[1]))
     except (
         sequence.BadNoteException, sequence.MultipleMidiProgramsException) as e:
       tf.logging.warn("Exception while processing %s: %s" % (
         sequence_data.filename, e))
       continue
     try:
+      tf.logging.info("Encoding sequence for training...")
       inputs, labels = one_hot_delta_codec.encode(
         polyphonic_sequence, FLAGS.max_voices, FLAGS.max_note_delta,
         FLAGS.max_intervoice_interval)
@@ -93,6 +99,7 @@ def main(unused_argv):
       tf.logging.warn("Exception while encoding %s: %s" % (
         sequence_data.filename, e))
       continue
+    tf.logging.info("Creating sequence example...")
     sequence_example = one_hot_delta_codec.as_sequence_example(inputs, labels)
     serialized = sequence_example.SerializeToString()
     if eval_writer and random.random() < FLAGS.eval_ratio:
@@ -105,7 +112,7 @@ def main(unused_argv):
     tf.logging.log_every_n(
       tf.logging.INFO,
       'Extracted %d polyphonic sequences.',
-      1,
+      10,
       input_count)
 
   tf.logging.info('Done. Extracted %d polyphonic sequences.', input_count)

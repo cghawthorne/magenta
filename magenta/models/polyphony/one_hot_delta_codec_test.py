@@ -30,7 +30,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (61, .15, .25),
       (49, .15, .25),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     # seq.get_events() =
     # array([[50, 60, -2],
     #        [-1, -1, 70],
@@ -69,7 +69,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
 
     exp = np.zeros_like(encoded)
     one_hot_delta_length = (max_delta * 2) + 1 + sequence.NUM_SPECIAL_EVENTS
-    one_hot_voice_rel_len = 12 + max_delta + 1
+    one_hot_voice_rel_len = 12 + max_intervoice_interval + 1
 
     delta_offset = sequence.NUM_SPECIAL_EVENTS + max_delta
     floats_offset = 3 * one_hot_delta_length
@@ -137,7 +137,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (61, .15, .25),
       (49, .15, .25),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     # seq.get_events() =
     # array([[-2, 60, -2],
     #        [50, -1, 70],
@@ -180,7 +180,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (60, 0, .15),
       (70, 0, .15),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
       one_hot_delta_codec.encode(seq, max_voices=2, max_note_delta=127,
           max_intervoice_interval=100)
@@ -191,7 +191,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (60, 0, .15),
       (80, .2, .3),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
       one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=10,
           max_intervoice_interval=100)
@@ -203,7 +203,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (50, 3, 4),
       (55, 3, 4),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
       one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=127,
           max_intervoice_interval=4)
@@ -217,7 +217,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (49, .15, .25),
       (40, 0, .25),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     encoded, labels = one_hot_delta_codec.encode(
         seq, max_voices=10, max_note_delta=127, max_intervoice_interval=100)
 
@@ -229,7 +229,7 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
     note_sequence = test_helper.create_note_sequence([
       (50, 0, .15),
     ])
-    seq = sequence.PolyphonicSequence(note_sequence)
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
     encoded, labels = one_hot_delta_codec.encode(
         seq, max_voices=10, max_note_delta=127, max_intervoice_interval=100)
 
