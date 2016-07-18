@@ -21,7 +21,17 @@ py_binary(
     deps = [
       ":sequence",
       ":one_hot_delta_codec",
-      "//magenta:note_sequence_io",
+      "//magenta/lib:note_sequence_io",
+    ]
+)
+
+py_binary(
+    name = "model",
+    srcs = ["model.py"],
+    deps = [
+      ":sequence",
+      ":one_hot_delta_codec",
+      "//magenta/lib:note_sequence_io",
     ]
 )
 

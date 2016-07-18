@@ -16,6 +16,7 @@
 import sequence
 import numpy as np
 import itertools
+import tensorflow as tf
 
 class EncodingException(Exception):
   pass
@@ -120,14 +121,12 @@ def encode(
 
   return inputs, labels
 
-def as_sequence_example(polyphonic_sequence):
-  inputs, labels = encode(polyphonic_sequence)
-
+def as_sequence_example(inputs, labels):
   input_features = [
       tf.train.Feature(float_list=tf.train.FloatList(value=input_))
       for input_ in inputs]
   label_features = [
-      tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))
+      tf.train.Feature(int64_list=tf.train.Int64List(value=label))
       for label in labels]
   feature_list = {
       'inputs': tf.train.FeatureList(feature=input_features),
