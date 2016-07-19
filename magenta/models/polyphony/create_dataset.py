@@ -36,15 +36,6 @@ tf.app.flags.DEFINE_string('eval_output', None,
 tf.app.flags.DEFINE_float('eval_ratio', 0.0,
                           'Fraction of input to set aside for eval set. '
                           'Partition is randomly selected.')
-tf.app.flags.DEFINE_integer('max_voices', 10,
-                            'The maxiumum number of voices allow in a '
-                            'polyphonic sequence.')
-tf.app.flags.DEFINE_integer('max_note_delta', 40,
-                            'The maxiumum number of steps a voice is allowed '
-                            'to change')
-tf.app.flags.DEFINE_integer('max_intervoice_interval', 50,
-                            'The maxiumum number of steps allowed between '
-                            'voices.')
 
 def main(unused_argv):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -77,6 +68,7 @@ def main(unused_argv):
   train_output_count = 0
   eval_output_count = 0
   tf.logging.info('Extracting polyphonic sequences...')
+  codec = one_hot_delta_codec.PolyphonyCodec()
   for sequence_data in reader:
     tf.logging.info("Parsing data from %s" % (sequence_data.filename))
     try:
@@ -92,7 +84,7 @@ def main(unused_argv):
       continue
     try:
       tf.logging.info("Encoding sequence for training...")
-      inputs, labels = one_hot_delta_codec.encode(
+      inputs, labels = codec.encode(
         polyphonic_sequence, FLAGS.max_voices, FLAGS.max_note_delta,
         FLAGS.max_intervoice_interval)
     except one_hot_delta_codec.EncodingException as e:
@@ -100,7 +92,7 @@ def main(unused_argv):
         sequence_data.filename, e))
       continue
     tf.logging.info("Creating sequence example...")
-    sequence_example = one_hot_delta_codec.as_sequence_example(inputs, labels)
+    sequence_example = codec.as_sequence_example(inputs, labels)
     serialized = sequence_example.SerializeToString()
     if eval_writer and random.random() < FLAGS.eval_ratio:
       eval_writer.write(serialized)

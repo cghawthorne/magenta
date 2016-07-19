@@ -14,7 +14,6 @@
 """Create a dataset from NoteSequence protos. """
 
 import sequence
-import logging
 import sys
 import tensorflow as tf
 import numpy as np
@@ -23,19 +22,18 @@ import one_hot_delta_codec
 
 
 FLAGS = tf.app.flags.FLAGS
-tf.app.flags.DEFINE_string('input', None,
-                           'TFRecord to read NoteSequence protos from.')
-
-NUM_VOICES=6
+tf.app.flags.DEFINE_string('model_dir', '/tmp/polyphony_rnn',
+                           'Directory to save model parameters, graph and etc.')
+tf.app.flags.DEFINE_string('sequence_example_file', '',
+                           'Path to TFRecord file containing '
+                           'tf.SequenceExample records for training or '
+                           'evaluation.')
 
 class PolyphonicRNN(tf.contrib.learn.estimators.Estimator):
   pass
 
-def gen_model():
+def gen_model(num_classes, classes_per_label):
   def model_fn(features, targets, mode, params):
-    # there's only 1 data set, so we know it's all the same size
-    sequence_lengths = tf.constant([features.get_shape()[1].value])
-
     # If state_is_tuple is True, the output RNN cell state will be a tuple
     # instead of a tensor. During training and evaluation this improves
     # performance. However, during generation, the RNN cell state is fed
@@ -61,27 +59,34 @@ def gen_model():
     initial_state = cell.zero_state(1, tf.float32)
 
     outputs, final_state = tf.nn.dynamic_rnn(
-        cell, features, sequence_lengths, initial_state, dtype=tf.float32,
-        parallel_iterations=1, swap_memory=True)
+        cell, features['inputs'], features['lengths'], initial_state,
+        dtype=tf.float32, parallel_iterations=1, swap_memory=True)
 
     outputs_flat = tf.reshape(outputs, [-1, params['layer_sizes'][-1]])
-    logits_flat = tf.contrib.layers.linear(outputs_flat, 130*NUM_VOICES)
+    logits_flat = tf.contrib.layers.linear(outputs_flat, num_classes)
 
     loss = None
     if mode != tf.contrib.learn.ModeKeys.INFER:
-      labels_flat = tf.squeeze(targets, [0])
+      labels_flat = tf.squeeze(targets['labels'], [0])
 
       total_cost = tf.constant([0], dtype=tf.float32)
-      for voice in range(NUM_VOICES):
+      for i in range(len(classes_per_label)):
         cost = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            tf.slice(logits_flat, [0,130*voice], [-1, 130]),
-            tf.squeeze(tf.slice(labels_flat, [0,voice], [-1, 1]), [1]))
+            tf.slice(
+                logits_flat,
+                [0, sum(classes_per_label[0:i])],
+                [-1, classes_per_label[i]]),
+            tf.squeeze(tf.slice(labels_flat, [0, i], [-1, 1]), [1]))
         total_cost = tf.add(total_cost, cost)
       loss = tf.reduce_mean(total_cost)
 
     predictions = []
-    for voice in range(NUM_VOICES):
-      prediction = tf.nn.top_k(tf.slice(logits_flat, [0,130*voice], [-1, 130]))
+    for i in range(len(classes_per_label)):
+      prediction = tf.nn.top_k(
+          tf.slice(
+              logits_flat,
+              [0, sum(classes_per_label[0:i])],
+              [-1, classes_per_label[i]]))
       predictions.append(prediction)
 
     train_op = None
@@ -96,35 +101,53 @@ def gen_model():
 
   return model_fn
 
+def _get_input_fn(mode, filename, input_size, labels_per_example, batch_size,
+                  num_enqueuing_threads=4):
+  def input_fn():
+    file_queue = tf.train.string_input_producer([filename])
+    reader = tf.TFRecordReader()
+    _, serialized_example = reader.read(file_queue)
+
+    sequence_features = {
+        'inputs': tf.FixedLenSequenceFeature(shape=[input_size],
+                                             dtype=tf.float32),
+        'labels': tf.FixedLenSequenceFeature(shape=[labels_per_example],
+                                             dtype=tf.int64)
+    }
+
+    _, sequence = tf.parse_single_sequence_example(
+        serialized_example, sequence_features=sequence_features)
+
+    # TODO: make this a queue?
+
+    length = tf.shape(sequence['inputs'])[0]
+    return (
+        {
+            'inputs': tf.expand_dims(sequence['inputs'], [0]),
+            'lengths': tf.expand_dims(length, [0])
+        }, {'labels': tf.expand_dims(sequence['labels'], [0])})
+
+  return input_fn
+
 def main(unused_argv):
-  root = logging.getLogger()
-  root.setLevel(logging.INFO)
-  ch = logging.StreamHandler(sys.stdout)
-  ch.setLevel(logging.INFO)
-  root.addHandler(ch)
-
-  reader = note_sequence_io.note_sequence_record_iterator(FLAGS.input)
-  #np.set_printoptions(threshold=np.nan)
-  note_sequence = reader.next()
-  polyphonic_sequence = sequence.PolyphonicSequence(note_sequence)
-  inputs, labels = one_hot_delta_codec.encode(
-      polyphonic_sequence, max_voices=10, max_note_delta=30,
-      max_intervoice_interval=50)
-
+  codec = one_hot_delta_codec.PolyphonyCodec()
   estimator = tf.contrib.learn.Estimator(
-      model_fn=gen_model(),
-      model_dir='/tmp/polyphony',
-      config=None,
+      model_fn=gen_model(codec.num_classes, codec.classes_per_label),
+      model_dir=FLAGS.model_dir,
+      config=tf.contrib.learn.RunConfig(save_summary_steps=10),
       params={
-          'layer_sizes': [128, 128],
+          'layer_sizes': [32, 32],
           'dropout_keep_prob': .9,
-          'learning_rate': .1,
+          'learning_rate': .001,
       })
 
   estimator.fit(
-      x=np.array([inputs]),
-      y=np.array([labels]),
-      steps=100)
+      input_fn=_get_input_fn(
+          mode=tf.contrib.learn.ModeKeys.TRAIN,
+          filename=FLAGS.sequence_example_file,
+          input_size=codec.input_size,
+          labels_per_example=codec.labels_per_example,
+          batch_size=2))
 
 
 

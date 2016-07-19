@@ -40,10 +40,11 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
 
     max_delta = 70 - 49
     max_intervoice_interval = 25
-    encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=3, max_note_delta=max_delta,
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=3, max_note_delta=max_delta,
         max_intervoice_interval=max_intervoice_interval)
 
+    encoded, labels = codec.encode(seq)
     exp_labels = np.zeros_like(labels)
 
     se = sequence.NUM_SPECIAL_EVENTS
@@ -147,9 +148,12 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
 
     max_delta = 70 - 49
     max_intervoice_interval = 25
-    encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=3, max_note_delta=max_delta,
+
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=3, max_note_delta=max_delta,
         max_intervoice_interval=max_intervoice_interval)
+
+    encoded, labels = codec.encode(seq)
 
     exp_labels = np.zeros_like(labels)
 
@@ -181,9 +185,10 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (70, 0, .15),
     ])
     seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=2, max_note_delta=127, max_intervoice_interval=100)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
-      one_hot_delta_codec.encode(seq, max_voices=2, max_note_delta=127,
-          max_intervoice_interval=100)
+      codec.encode(seq)
 
   def testMaxNoteDelta(self):
     note_sequence = test_helper.create_note_sequence([
@@ -192,9 +197,10 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (80, .2, .3),
     ])
     seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=3, max_note_delta=10, max_intervoice_interval=100)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
-      one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=10,
-          max_intervoice_interval=100)
+      codec.encode(seq)
 
   def testMaxIntervoiceInterval(self):
     note_sequence = test_helper.create_note_sequence([
@@ -204,9 +210,10 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (55, 3, 4),
     ])
     seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=3, max_note_delta=127, max_intervoice_interval=4)
     with self.assertRaises(one_hot_delta_codec.EncodingException):
-      one_hot_delta_codec.encode(seq, max_voices=3, max_note_delta=127,
-          max_intervoice_interval=4)
+      codec.encode(seq)
 
   def testVoicePosition(self):
     note_sequence = test_helper.create_note_sequence([
@@ -218,8 +225,9 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (40, 0, .25),
     ])
     seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
-    encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    encoded, labels = codec.encode(seq)
 
     # 4 voices into 10 columns. Only columns 0, 2, 5, and 9 should have data.
     self.assertTrue((labels[:,[0,3,6,9]] != 0).any())
@@ -230,12 +238,23 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
       (50, 0, .15),
     ])
     seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
-    encoded, labels = one_hot_delta_codec.encode(
-        seq, max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    encoded, labels = codec.encode(seq)
 
     # 1 voice into 10 columns. Only column 0 should have data.
     self.assertTrue((labels[:,[0]] != 0).any())
     self.assertTrue((labels[:,[1,2,3,4,5,6,7,8,9]] == 0).all())
+
+  def testInputSize(self):
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    self.assertEqual(7665, codec.input_size)
+
+  def testNumClasses(self):
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    self.assertEqual(2084, codec.num_classes)
 
 
 if __name__ == '__main__':
