@@ -56,37 +56,41 @@ def gen_model(num_classes, classes_per_label):
 
     cell = tf.nn.rnn_cell.MultiRNNCell(cells, state_is_tuple=state_is_tuple)
 
-    initial_state = cell.zero_state(1, tf.float32)
+    batch_size = features['inputs'].get_shape()[0].value
+    initial_state = cell.zero_state(batch_size, tf.float32)
 
     outputs, final_state = tf.nn.dynamic_rnn(
         cell, features['inputs'], features['lengths'], initial_state,
         dtype=tf.float32, parallel_iterations=1, swap_memory=True)
 
-    outputs_flat = tf.reshape(outputs, [-1, params['layer_sizes'][-1]])
-    logits_flat = tf.contrib.layers.linear(outputs_flat, num_classes)
+    logits = tf.contrib.layers.linear(outputs, num_classes)
 
     loss = None
     if mode != tf.contrib.learn.ModeKeys.INFER:
-      labels_flat = tf.squeeze(targets['labels'], [0])
-
+      #import pdb; pdb.set_trace()
       total_cost = tf.constant([0], dtype=tf.float32)
-      for i in range(len(classes_per_label)):
+      for voice in range(len(classes_per_label)):
         cost = tf.nn.sparse_softmax_cross_entropy_with_logits(
             tf.slice(
-                logits_flat,
-                [0, sum(classes_per_label[0:i])],
-                [-1, classes_per_label[i]]),
-            tf.squeeze(tf.slice(labels_flat, [0, i], [-1, 1]), [1]))
+                logits,
+                [0, 0, sum(classes_per_label[0:voice])],
+                [-1, -1, classes_per_label[voice]]),
+            tf.squeeze(
+                tf.slice(
+                    targets['labels'],
+                    [0, 0, voice],
+                    [-1, -1, 1]),
+                [2]))
         total_cost = tf.add(total_cost, cost)
       loss = tf.reduce_mean(total_cost)
 
     predictions = []
-    for i in range(len(classes_per_label)):
+    for voice in range(len(classes_per_label)):
       prediction = tf.nn.top_k(
           tf.slice(
-              logits_flat,
-              [0, sum(classes_per_label[0:i])],
-              [-1, classes_per_label[i]]))
+              logits,
+              [0, 0, sum(classes_per_label[0:voice])],
+              [-1, -1, classes_per_label[voice]]))
       predictions.append(prediction)
 
     train_op = None
@@ -118,14 +122,27 @@ def _get_input_fn(mode, filename, input_size, labels_per_example, batch_size,
     _, sequence = tf.parse_single_sequence_example(
         serialized_example, sequence_features=sequence_features)
 
-    # TODO: make this a queue?
-
     length = tf.shape(sequence['inputs'])[0]
+
+    queue = tf.PaddingFIFOQueue(
+      capacity=1000,
+      dtypes=[tf.float32, tf.int64, tf.int32],
+      shapes=[(None, input_size), (None, labels_per_example), ()])
+
+    enqueue_ops = [queue.enqueue([sequence['inputs'],
+                                sequence['labels'],
+                                length])] * num_enqueuing_threads
+
+    tf.train.add_queue_runner(tf.train.QueueRunner(queue, enqueue_ops))
+    batch = queue.dequeue_many(batch_size)
+
     return (
         {
-            'inputs': tf.expand_dims(sequence['inputs'], [0]),
-            'lengths': tf.expand_dims(length, [0])
-        }, {'labels': tf.expand_dims(sequence['labels'], [0])})
+            'inputs': batch[0],
+            'lengths': batch[2],
+        },
+        {'labels': batch[1]}
+    )
 
   return input_fn
 
@@ -147,7 +164,7 @@ def main(unused_argv):
           filename=FLAGS.sequence_example_file,
           input_size=codec.input_size,
           labels_per_example=codec.labels_per_example,
-          batch_size=2))
+          batch_size=5))
 
 
 
