@@ -84,9 +84,7 @@ def main(unused_argv):
       continue
     try:
       tf.logging.info("Encoding sequence for training...")
-      inputs, labels = codec.encode(
-        polyphonic_sequence, FLAGS.max_voices, FLAGS.max_note_delta,
-        FLAGS.max_intervoice_interval)
+      inputs, labels = codec.encode(polyphonic_sequence)
     except one_hot_delta_codec.EncodingException as e:
       tf.logging.warn("Exception while encoding %s: %s" % (
         sequence_data.filename, e))
