@@ -18,9 +18,9 @@ import numpy as np
 import itertools
 import tensorflow as tf
 
-DEFAULT_MAX_VOICES = 10
-DEFAULT_MAX_NOTE_DELTA = 40
-DEFAULT_MAX_INTERVOICE_INTERVAL = 50
+DEFAULT_MAX_VOICES = 5
+DEFAULT_MAX_NOTE_DELTA = 20
+DEFAULT_MAX_INTERVOICE_INTERVAL = 40
 
 class EncodingException(Exception):
   pass

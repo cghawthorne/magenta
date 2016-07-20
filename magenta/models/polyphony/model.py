@@ -19,6 +19,7 @@ import tensorflow as tf
 import numpy as np
 from magenta.lib import note_sequence_io
 import one_hot_delta_codec
+from magenta.protobuf import music_pb2
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -154,10 +155,10 @@ def _get_input_fn(mode, filename, input_size, labels_per_example, batch_size,
 def main(unused_argv):
   codec = one_hot_delta_codec.PolyphonyCodec()
   params = {
-      'layer_sizes': [32, 32],
+      'layer_sizes': [64, 64],
       'dropout_keep_prob': .9,
       'learning_rate': .0001,
-      'batch_size': 2,
+      'batch_size': 8,
   }
   estimator = tf.contrib.learn.Estimator(
       model_fn=gen_model(codec.num_classes, codec.classes_per_label),
@@ -165,30 +166,30 @@ def main(unused_argv):
       config=tf.contrib.learn.RunConfig(save_summary_steps=10),
       params=params)
 
-  train_input_fn=_get_input_fn(
-      mode=tf.contrib.learn.ModeKeys.TRAIN,
-      filename=FLAGS.sequence_example_train_file,
-      input_size=codec.input_size,
-      labels_per_example=codec.labels_per_example,
-      batch_size=params['batch_size'])
-
-  eval_input_fn=_get_input_fn(
-      mode=tf.contrib.learn.ModeKeys.EVAL,
-      filename=FLAGS.sequence_example_eval_file,
-      input_size=codec.input_size,
-      labels_per_example=codec.labels_per_example,
-      batch_size=params['batch_size'])
-
   if not FLAGS.predict:
+    train_input_fn=_get_input_fn(
+        mode=tf.contrib.learn.ModeKeys.TRAIN,
+        filename=FLAGS.sequence_example_train_file,
+        input_size=codec.input_size,
+        labels_per_example=codec.labels_per_example,
+        batch_size=params['batch_size'])
+
+    eval_input_fn=_get_input_fn(
+        mode=tf.contrib.learn.ModeKeys.EVAL,
+        filename=FLAGS.sequence_example_eval_file,
+        input_size=codec.input_size,
+        labels_per_example=codec.labels_per_example,
+        batch_size=params['batch_size'])
+
     experiment = tf.contrib.learn.Experiment(
         estimator=estimator,
         train_input_fn=train_input_fn,
         eval_input_fn=eval_input_fn,
         train_steps=None,
-        eval_steps=2,
-        local_eval_frequency=10)
+        eval_steps=5,
+        local_eval_frequency=50)
 
-    experiment.run_locally()
+    experiment.local_run()
   else:
     # C major chord for .5 seconds.
     notes = [
@@ -196,19 +197,20 @@ def main(unused_argv):
       (64, 0, .5),
       (67, 0, .5),
     ]
-    sequence = music_pb2.NoteSequence()
+    seq = music_pb2.NoteSequence()
     for pitch, start_time, end_time in notes:
-      note = sequence.notes.add()
+      note = seq.notes.add()
       note.pitch = pitch
       note.velocity = 100
       note.start_time = start_time
       note.end_time = end_time
-    inputs, _ = codec.encode(sequence)
-    features = {
-        'inputs': [inputs],
-        'lengths': inputs.shape[0],
-    }
-    predictions = estimator.predict(x=features)
+    inputs, _ = codec.encode(sequence.PolyphonicSequence(seq))
+    def _input_fn():
+      return ({
+          'inputs': tf.constant(np.array([inputs]), dtype=tf.float32),
+          'lengths': tf.constant(np.array([inputs.shape[0]])),
+      })
+    predictions = estimator.predict(input_fn=_input_fn)
     import pdb; pdb.set_trace()
 
 
