@@ -68,6 +68,14 @@ class PolyphonyCodec:
   def num_classes(self):
     return sum(self.classes_per_label)
 
+  @property
+  def max_note_delta(self):
+    return self._max_note_delta
+
+  @property
+  def max_intervoice_interval(self):
+    return self._max_intervoice_interval
+
   def encode(self, polyphonic_sequence):
     seq = polyphonic_sequence.get_events()
 
@@ -91,10 +99,8 @@ class PolyphonyCodec:
     active_notes = [None] * self._max_voices
     for step in range(seq.shape[0]):
       for seq_voice, pitch in enumerate(seq[step]):
-        # Determine voice position
-        voice = 0
-        if seq_voice > 0:
-          voice = int(round(seq_voice * (float(self._max_voices-1)/(seq.shape[1]-1))))
+        voice = sequence.remap_voice_index(
+            seq.shape[1], self._max_voices, seq_voice)
 
         if pitch == sequence.NO_EVENT:
           active_notes[voice] = None
@@ -177,3 +183,23 @@ class PolyphonyCodec:
     feature_lists = tf.train.FeatureLists(feature_list=feature_list)
     return tf.train.SequenceExample(feature_lists=feature_lists)
 
+  def extend_seq_one_step_with_prediction_results(self, seq, labels):
+    new_step = np.empty(len(labels), dtype=int)
+    events = seq.get_events()
+    last_note_lowest_voice = events[np.where(events[:,[0]] >= 0)[0][-1]][0]
+    if labels[0] < sequence.NUM_SPECIAL_EVENTS:
+      new_step[0] = labels[0] - sequence.NUM_SPECIAL_EVENTS
+    else:
+      new_step[0] = last_note_lowest_voice + (
+          labels[0] - sequence.NUM_SPECIAL_EVENTS - self._max_note_delta)
+      last_note_lowest_voice = new_step[0]
+
+    for voice in range(1, len(labels)):
+      if labels[voice] < sequence.NUM_SPECIAL_EVENTS:
+        new_step[voice] = labels[voice] - sequence.NUM_SPECIAL_EVENTS
+      else:
+        new_step[voice] = last_note_lowest_voice + (
+            labels[voice] - sequence.NUM_SPECIAL_EVENTS -
+            self._max_intervoice_interval)
+
+    seq.extend_one_step(new_step)

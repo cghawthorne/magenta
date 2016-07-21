@@ -67,15 +67,14 @@ class PolyphonicSequence(object):
     else:
       return (self._events[self._current_step] == NO_EVENT).nonzero()[0]
 
-  def _write_note_to_voice(self, voice, note):
-    # resize _events if needed
-    if self._events.shape[1] <= voice:
+  def _resize_to_fit(self, steps, voices):
+    if self._events.shape[1] <= voices:
       expansion = np.empty(
-        (self._events.shape[0], voice - self._events.shape[1] + 1),
+        (self._events.shape[0], voices - self._events.shape[1] + 1),
         dtype=int)
       expansion.fill(NO_EVENT)
       self._events = np.hstack((self._events, expansion))
-    while self._events.shape[0] <= note.end_step+1:
+    while self._events.shape[0] <= steps:
       # Resizing is expensive, double the number of steps.
       # We'll trim it at the end.
       expansion = np.empty(
@@ -83,6 +82,10 @@ class PolyphonicSequence(object):
           dtype=int)
       expansion.fill(NO_EVENT)
       self._events = np.vstack((self._events, expansion))
+
+  def _write_note_to_voice(self, voice, note):
+    # resize _events if needed
+    self._resize_to_fit(note.end_step + 1, voice)
 
     self._events[note.start_step][voice] = note.pitch
     self._events[note.start_step+1:note.end_step+1][...,voice] = NOTE_HOLD
@@ -209,6 +212,44 @@ class PolyphonicSequence(object):
         voice in range(self._events.shape[1])]
     self._events = self._events[:, np.argsort(mean_notes)]
 
+  def extend_one_step(self, voice_events):
+    # Add one step to events
+    expansion = np.empty((1, self._events.shape[1]), dtype=int)
+    expansion.fill(NO_EVENT)
+    self._events = np.vstack((self._events, expansion))
+
+    # Add voices if needed
+    if self._events.shape[1] < len(voice_events):
+      num_voices = len(voice_events)
+      previous_num_voices = self._events.shape[1]
+      expansion = np.empty(
+          (self._events.shape[0], num_voices - self._events.shape[1] + 1),
+          dtype=int)
+      expansion.fill(NO_EVENT)
+      self._events = np.hstack((self._events, expansion))
+      # calculate rearrangement
+      new_voice_id_to_old = {}
+      for i in range(previous_num_voices):
+        new_id = remap_voice_index(previous_num_voices, num_voices, i)
+        new_voice_id_to_old[new_id] = i
+      current_unused_new_voice_col = previous_num_voices
+      new_order = []
+      for i in range(num_voices):
+        if i in new_voice_id_to_old:
+          new_order.append(new_voice_id_to_old[i])
+        else:
+          new_order.append(current_unused_new_voice_col)
+          current_unused_new_voice_col += 1
+      self._events = self._events[:,new_order]
+
+    self._events[-1] = voice_events
+
   def get_events(self):
     return np.copy(self._events)
 
+def remap_voice_index(previous_num_voices, new_num_voices, old_voice_index):
+  new_id = 0
+  if old_voice_index > 0:
+    new_id = int(round(
+        old_voice_index * (float(new_num_voices-1)/(previous_num_voices-1))))
+  return new_id

@@ -256,6 +256,144 @@ class OneHotDeltaCodecTest(tf.test.TestCase):
         max_voices=10, max_note_delta=127, max_intervoice_interval=100)
     self.assertEqual(2084, codec.num_classes)
 
+  def testExtendSeqOneStepWithPredictionResults(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, 0, .15),
+      (60, 0, .15),
+      (70, .05, .2),
+      (61, .15, .25),
+      (49, .15, .25),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
+    # seq.get_events() =
+    # array([[50, 60, -2],
+    #        [-1, -1, 70],
+    #        [-1, -1, -1],
+    #        [49, 61, -1],
+    #        [-1, -1, -2]])
+
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    codec.extend_seq_one_step_with_prediction_results(
+        seq,
+        [
+            sequence.NUM_SPECIAL_EVENTS + codec.max_note_delta - 5,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD,
+            sequence.NUM_SPECIAL_EVENTS + codec.max_intervoice_interval + 20
+        ])
+    codec.extend_seq_one_step_with_prediction_results(
+        seq,
+        [
+            sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + codec.max_intervoice_interval + 25
+        ])
+
+    expected = np.array([
+        [50, 60, -2],
+        [-1, -1, 70],
+        [-1, -1, -1],
+        [49, 61, -1],
+        [-1, -1, -2],
+        [44, -1, 64],
+        [-1, -2, 69]])
+
+    np.testing.assert_array_equal(expected, seq.get_events())
+
+  def testExtendSeqOneStepWithPredictionResultsExpandEvenVoices(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, 0, .15),
+      (60, 0, .15),
+      (70, .05, .2),
+      (61, .15, .25),
+      (49, .15, .25),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
+    # seq.get_events() =
+    # array([[50, 60, -2],
+    #        [-1, -1, 70],
+    #        [-1, -1, -1],
+    #        [49, 61, -1],
+    #        [-1, -1, -2]])
+
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    codec.extend_seq_one_step_with_prediction_results(
+        seq,
+        [
+            sequence.NUM_SPECIAL_EVENTS + codec.max_note_delta - 5,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + codec.max_intervoice_interval + 20
+        ])
+    codec.extend_seq_one_step_with_prediction_results(
+        seq,
+        [
+            sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + codec.max_intervoice_interval + 25
+        ])
+
+    expected = np.array([
+        [50, -2, 60, -2, -2],
+        [-1, -2, -1, -2, 70],
+        [-1, -2, -1, -2, -1],
+        [49, -2, 61, -2, -1],
+        [-1, -2, -1, -2, -2],
+        [44, -2, -1, -2, 64],
+        [-1, -2, -2, -2, 69]])
+
+    np.testing.assert_array_equal(expected, seq.get_events())
+
+  def testExtendSeqOneStepWithPredictionResultsExpandOddVoices(self):
+    note_sequence = test_helper.create_note_sequence([
+      (50, 0, .15),
+      (60, 0, .15),
+      (70, .05, .2),
+      (61, .15, .25),
+      (49, .15, .25),
+    ])
+    seq = sequence.PolyphonicSequence(note_sequence, steps_per_second=20)
+    # seq.get_events() =
+    # array([[50, 60, -2],
+    #        [-1, -1, 70],
+    #        [-1, -1, -1],
+    #        [49, 61, -1],
+    #        [-1, -1, -2]])
+
+    codec = one_hot_delta_codec.PolyphonyCodec(
+        max_voices=10, max_note_delta=127, max_intervoice_interval=100)
+    codec.extend_seq_one_step_with_prediction_results(
+        seq,
+        [
+            sequence.NUM_SPECIAL_EVENTS + codec.max_note_delta - 5,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD,
+            sequence.NUM_SPECIAL_EVENTS + codec.max_intervoice_interval + 20
+        ])
+    codec.extend_seq_one_step_with_prediction_results(
+        seq,
+        [
+            sequence.NUM_SPECIAL_EVENTS + sequence.NOTE_HOLD,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + sequence.NO_EVENT,
+            sequence.NUM_SPECIAL_EVENTS + codec.max_intervoice_interval + 25
+        ])
+
+    expected = np.array([
+        [50, -2, 60, -2],
+        [-1, -2, -1, 70],
+        [-1, -2, -1, -1],
+        [49, -2, 61, -1],
+        [-1, -2, -1, -2],
+        [44, -2, -1, 64],
+        [-1, -2, -2, 69]])
+
+    np.testing.assert_array_equal(expected, seq.get_events())
+
 
 if __name__ == '__main__':
     tf.test.main()
