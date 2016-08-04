@@ -20,6 +20,7 @@ import numpy as np
 from magenta.lib import note_sequence_io
 import one_hot_delta_codec
 from magenta.protobuf import music_pb2
+from magenta.lib import midi_io
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -67,33 +68,34 @@ def gen_model(num_classes, classes_per_label):
         cell, features['inputs'], features['lengths'], initial_state,
         dtype=tf.float32, parallel_iterations=1, swap_memory=True)
 
-    logits = tf.contrib.layers.linear(outputs, num_classes)
+    # Separate this out into one layer per voice
+    logits = []
+    for voice in range(len(classes_per_label)):
+      logits.append(tf.contrib.layers.linear(
+          outputs,
+          classes_per_label[voice],
+          weights_regularizer=tf.contrib.layers.l2_regularizer(
+              params['l2_regularizer_scale'])))
 
     loss = None
     if mode != tf.contrib.learn.ModeKeys.INFER:
-      total_cost = tf.constant([0], dtype=tf.float32)
+      costs = []
       for voice in range(len(classes_per_label)):
         cost = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            tf.slice(
-                logits,
-                [0, 0, sum(classes_per_label[0:voice])],
-                [-1, -1, classes_per_label[voice]]),
+            logits[voice],
             tf.squeeze(
                 tf.slice(
                     targets['labels'],
                     [0, 0, voice],
                     [-1, -1, 1]),
                 [2]))
-        total_cost = tf.add(total_cost, cost)
+        costs.append(cost)
+      total_cost = tf.add_n(costs, 'total_cost')
       loss = tf.reduce_mean(total_cost)
 
     prediction_indices = []
     for voice in range(len(classes_per_label)):
-      _, prediction_index = tf.nn.top_k(
-          tf.slice(
-              logits,
-              [0, 0, sum(classes_per_label[0:voice])],
-              [-1, -1, classes_per_label[voice]]))
+      _, prediction_index = tf.nn.top_k(logits[voice])
       prediction_indices.append(prediction_index)
     predictions = {
         'labels': tf.concat(2, prediction_indices),
@@ -155,11 +157,17 @@ def _get_input_fn(mode, filename, input_size, labels_per_example, batch_size,
 def main(unused_argv):
   codec = one_hot_delta_codec.PolyphonyCodec()
   params = {
-      'layer_sizes': [64, 64],
+      'layer_sizes': [2048, 2048, 2048],
       'dropout_keep_prob': .9,
-      'learning_rate': .0001,
-      'batch_size': 8,
+      'learning_rate': .00001,
+      'batch_size': 5,
+      'l2_regularizer_scale': .01,
   }
+
+  # If predicting, don't do any dropout.
+  if FLAGS.predict:
+    params['dropout_keep_prob'] = 1.0
+
   estimator = tf.contrib.learn.Estimator(
       model_fn=gen_model(codec.num_classes, codec.classes_per_label),
       model_dir=FLAGS.model_dir,
@@ -186,32 +194,40 @@ def main(unused_argv):
         train_input_fn=train_input_fn,
         eval_input_fn=eval_input_fn,
         train_steps=None,
-        eval_steps=5,
-        local_eval_frequency=50)
+        eval_steps=1,
+        local_eval_frequency=None)
 
     experiment.local_run()
   else:
-    # C major chord for .5 seconds.
-    notes = [
-      (60, 0, .5),
-      (64, 0, .5),
-      (67, 0, .5),
-    ]
-    seq = music_pb2.NoteSequence()
-    for pitch, start_time, end_time in notes:
-      note = seq.notes.add()
-      note.pitch = pitch
-      note.velocity = 100
-      note.start_time = start_time
-      note.end_time = end_time
-    inputs, _ = codec.encode(sequence.PolyphonicSequence(seq))
-    def _input_fn():
-      return ({
-          'inputs': tf.constant(np.array([inputs]), dtype=tf.float32),
-          'lengths': tf.constant(np.array([inputs.shape[0]])),
-      })
-    predictions = estimator.predict(input_fn=_input_fn)
-    import pdb; pdb.set_trace()
+    # C major chord
+    # notes = [
+    #   (48, 0, .1),
+    #   (60, 0, .1),
+    #   (64, 0, .1),
+    #   (67, 0, .1),
+    # ]
+    # nseq = music_pb2.NoteSequence()
+    # for pitch, start_time, end_time in notes:
+    #   note = nseq.notes.add()
+    #   note.pitch = pitch
+    #   note.velocity = 100
+    #   note.start_time = start_time
+    #   note.end_time = end_time
+    # seq = sequence.PolyphonicSequence(nseq)
+    nseq = midi_io.midi_to_sequence_proto(
+        tf.gfile.FastGFile("bach/bwv853.mid").read())
+    seq = sequence.PolyphonicSequence(nseq, max_start_step=50)
+    for i in range(100):
+      inputs, _ = codec.encode(seq)
+      def _input_fn():
+        return ({
+            'inputs': tf.constant(np.array([inputs]), dtype=tf.float32),
+            'lengths': tf.constant(np.array([inputs.shape[0]])),
+        })
+      predictions = estimator.predict(input_fn=_input_fn)
+      codec.extend_seq_one_step_with_prediction_results(
+          seq, predictions['labels'][0][-1])
+    print seq.get_events()
 
 
 if __name__ == "__main__":

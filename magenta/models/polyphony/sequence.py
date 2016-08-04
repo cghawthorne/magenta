@@ -39,7 +39,7 @@ Note = namedtuple('Note', ['pitch', 'start_step', 'end_step'])
 class PolyphonicSequence(object):
   """Stores a quantized stream of polyphonic events. """
 
-  def __init__(self, note_sequence, steps_per_second=15, max_start_step=1000):
+  def __init__(self, note_sequence, steps_per_second=5, max_start_step=1000):
     """Construct a polyphonic sequence.
 
     Args:

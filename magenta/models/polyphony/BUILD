@@ -32,6 +32,7 @@ py_binary(
       ":sequence",
       ":one_hot_delta_codec",
       "//magenta/lib:note_sequence_io",
+      "//magenta/lib:midi_io",
     ]
 )
 

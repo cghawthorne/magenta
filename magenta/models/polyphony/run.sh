@@ -1,0 +1,1 @@
+bazel-bin/magenta/models/polyphony/model --sequence_example_train_file ~/m/training/polyphony_rnn/sequence_examples/training-5-1000.tfrecord --sequence_example_eval_file ~/m/training/polyphony_rnn/sequence_examples/eval-5-1000.tfrecor --model_dir ~/m/training/polyphony_rnn/run8

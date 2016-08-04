@@ -18,7 +18,8 @@ import numpy as np
 import itertools
 import tensorflow as tf
 
-DEFAULT_MAX_VOICES = 5
+DEFAULT_MAX_VOICES = 4
+DEFAULT_MIN_VOICES = 4
 DEFAULT_MAX_NOTE_DELTA = 20
 DEFAULT_MAX_INTERVOICE_INTERVAL = 40
 
@@ -30,9 +31,11 @@ class PolyphonyCodec:
   def __init__(
       self,
       max_voices=DEFAULT_MAX_VOICES,
+      min_voices=DEFAULT_MIN_VOICES,
       max_note_delta=DEFAULT_MAX_NOTE_DELTA,
       max_intervoice_interval=DEFAULT_MAX_INTERVOICE_INTERVAL):
     self._max_voices = max_voices
+    self._min_voices = min_voices
     self._max_note_delta = max_note_delta
     self._max_intervoice_interval = max_intervoice_interval
 
@@ -82,6 +85,10 @@ class PolyphonyCodec:
     if seq.shape[1] > self._max_voices:
       raise EncodingException("Too many voices: %d > max of %d" %
                               (seq.shape[1], self._max_voices))
+
+    if seq.shape[1] < self._min_voices:
+      raise EncodingException("Too few voices: %d < min of %d" %
+                              (seq.shape[1], self._min_voices))
 
     inputs = np.zeros((seq.shape[0], self._one_hot_length), dtype=float)
     # labels for upper voices are how high above or below the lowest voice they
