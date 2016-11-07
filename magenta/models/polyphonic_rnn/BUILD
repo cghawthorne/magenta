@@ -23,6 +23,7 @@ py_binary(
     deps = [
         ":polyphonic_rnn_lib",
         ":polyphonic_rnn_graph",
+        "//magenta",
         # tensorflow dep
     ],
 )

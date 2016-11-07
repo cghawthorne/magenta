@@ -23,6 +23,7 @@ import tensorflow as tf
 
 from magenta.models.polyphonic_rnn import polyphonic_rnn_graph
 from magenta.models.polyphonic_rnn import polyphonic_rnn_lib
+import magenta.music as mm
 
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string(
@@ -66,12 +67,24 @@ def main(unused_argv):
     tf.gfile.MakeDirs(checkpoint_dir)
   tf.logging.info('Checkpoint dir: %s', checkpoint_dir)
 
-  graph = polyphonic_rnn_graph.Graph(FLAGS.note_sequence_input)
+  train_itr = polyphonic_rnn_lib.TFRecordDurationAndPitchIterator(
+      mm.note_sequence_io.note_sequence_record_iterator(
+          FLAGS.note_sequence_input),
+      polyphonic_rnn_lib.BATCH_SIZE, stop_index=.9,
+      sequence_length=polyphonic_rnn_lib.SEQUENCE_LENGTH)
+
+  valid_itr = polyphonic_rnn_lib.TFRecordDurationAndPitchIterator(
+      mm.note_sequence_io.note_sequence_record_iterator(
+          FLAGS.note_sequence_input),
+      polyphonic_rnn_lib.BATCH_SIZE, start_index=.9,
+      sequence_length=polyphonic_rnn_lib.SEQUENCE_LENGTH)
+
+  graph = polyphonic_rnn_graph.Graph()
   polyphonic_rnn_lib.run_loop(
       functools.partial(_loop, graph),
       checkpoint_dir,
-      graph.train_itr,
-      graph.valid_itr,
+      train_itr,
+      valid_itr,
       n_epochs=graph.num_epochs,
       checkpoint_delay=40,
       checkpoint_every_n_epochs=5,

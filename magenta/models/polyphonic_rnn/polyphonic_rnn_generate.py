@@ -21,6 +21,7 @@ import time
 import numpy as np
 import tensorflow as tf
 
+import magenta.music as mm
 from magenta.models.polyphonic_rnn import polyphonic_rnn_graph
 from magenta.models.polyphonic_rnn import polyphonic_rnn_lib
 
@@ -41,17 +42,22 @@ tf.app.flags.DEFINE_string(
 
 def sample(model_ckpt, runtime, note_sequence_input, sample_path, sample_len,
            temperature):
-  graph = polyphonic_rnn_graph.Graph(note_sequence_input)
-  graph.valid_itr.reset()
-  duration_mb, note_mb = graph.valid_itr.next()
-  polyphonic_rnn_lib.duration_and_pitch_to_midi(
-      sample_path + '/gt_%i.mid' % runtime, duration_mb[:, 0], note_mb[:, 0])
+  valid_itr = polyphonic_rnn_lib.TFRecordDurationAndPitchIterator(
+      mm.note_sequence_io.note_sequence_record_iterator(
+          note_sequence_input),
+      polyphonic_rnn_lib.BATCH_SIZE, start_index=.9,
+      sequence_length=polyphonic_rnn_lib.SEQUENCE_LENGTH)
+  valid_itr.reset()
+  duration_mb, note_mb = valid_itr.next()
+
+  graph = polyphonic_rnn_graph.Graph()
 
   with tf.Session() as sess:
     tf.initialize_all_variables().run()
     saver = tf.train.Saver(tf.all_variables())
     saver.restore(sess, model_ckpt)
-    i_h1 = np.zeros((graph.batch_size, graph.rnn_dim)).astype('float32')
+    i_h1 = np.zeros(
+        (polyphonic_rnn_lib.BATCH_SIZE, graph.rnn_dim)).astype('float32')
 
     prime = 8
     note_mb = note_mb[:prime]

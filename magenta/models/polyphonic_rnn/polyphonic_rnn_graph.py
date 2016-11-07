@@ -23,26 +23,11 @@ from magenta.models.polyphonic_rnn import polyphonic_rnn_lib
 
 class Graph(object):
 
-  def __init__(self, examples):
+  def __init__(self):
     self.num_epochs = 500
-    self.batch_size = 32
-    # ~1 step per seconds
-    # 30 steps ~= 30 seconds
-    sequence_length = 30
 
-    self.train_itr = polyphonic_rnn_lib.TFRecordDurationAndPitchIterator(
-        examples, self.batch_size, stop_index=.9,
-        sequence_length=sequence_length)
-
-    duration_mb, note_mb = next(self.train_itr)
-    self.train_itr.reset()
-
-    self.valid_itr = polyphonic_rnn_lib.TFRecordDurationAndPitchIterator(
-        examples, self.batch_size, start_index=.9,
-        sequence_length=sequence_length)
-
-    num_note_features = note_mb.shape[-1]
-    num_duration_features = duration_mb.shape[-1]
+    num_note_features = polyphonic_rnn_lib.SIMULTANEOUS_NOTES
+    num_duration_features = polyphonic_rnn_lib.SIMULTANEOUS_NOTES
     n_note_symbols = len(polyphonic_rnn_lib.NOTE_CLASSES)
     n_duration_symbols = len(polyphonic_rnn_lib.TIME_CLASSES)
     self.n_notes = polyphonic_rnn_lib.SIMULTANEOUS_NOTES
@@ -77,15 +62,18 @@ class Graph(object):
     random_state = np.random.RandomState(1999)
 
     self.duration_inpt = tf.placeholder(
-        tf.float32, [None, self.batch_size, num_duration_features])
+        tf.float32,
+        [None, polyphonic_rnn_lib.BATCH_SIZE, num_duration_features])
     self.note_inpt = tf.placeholder(
-        tf.float32, [None, self.batch_size, num_note_features])
+        tf.float32, [None, polyphonic_rnn_lib.BATCH_SIZE, num_note_features])
 
     self.note_target = tf.placeholder(
-        tf.float32, [None, self.batch_size, num_note_features])
+        tf.float32, [None, polyphonic_rnn_lib.BATCH_SIZE, num_note_features])
     self.duration_target = tf.placeholder(
-        tf.float32, [None, self.batch_size, num_duration_features])
-    self.init_h1 = tf.placeholder(tf.float32, [self.batch_size, self.rnn_dim])
+        tf.float32,
+        [None, polyphonic_rnn_lib.BATCH_SIZE, num_duration_features])
+    self.init_h1 = tf.placeholder(
+        tf.float32, [polyphonic_rnn_lib.BATCH_SIZE, self.rnn_dim])
 
     if share_note_and_target_embeddings:
       name_dur_emb = 'dur'

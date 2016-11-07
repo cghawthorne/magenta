@@ -39,6 +39,12 @@ SIMULTANEOUS_NOTES = 4
 # Note classes.
 NOTE_CLASSES = list(np.arange(88 + 1))  # + 1 for silence
 
+BATCH_SIZE = 32
+
+# ~1 step per seconds
+# 30 steps ~= 30 seconds
+SEQUENCE_LENGTH = 30
+
 ##
 # begin metautils
 ##
@@ -258,16 +264,15 @@ def duration_and_pitch_to_midi(filename, durations, pitches, prime_until=0):
 
 class TFRecordDurationAndPitchIterator(object):
 
-  def __init__(self, files_path, minibatch_size, start_index=0,
+  def __init__(self, ns_iterator, minibatch_size, start_index=0,
                stop_index=np.inf, make_mask=False,
                sequence_length=None,
                randomize=True):
     """Supports regular int, negative indexing, or float for stop_index."""
-    reader = mm.note_sequence_io.note_sequence_record_iterator(files_path)
     all_ds = []
     all_ps = []
     time_classes_set = set(TIME_CLASSES)
-    for ns in reader:
+    for ns in ns_iterator:
       notes = ns.notes
       st = np.array([n.start_time for n in notes]).astype('float32')
       et = np.array([n.end_time for n in notes]).astype('float32')
