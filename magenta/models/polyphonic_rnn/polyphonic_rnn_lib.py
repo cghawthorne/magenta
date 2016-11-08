@@ -283,6 +283,7 @@ class TFRecordDurationAndPitchIterator(object):
       sample_times = sorted(list(set(st)))
       # go straight for pitch and delta time encoding
       pitch_slices = [pi[st == sti][::-1] for sti in sample_times]
+      import pdb; pdb.set_trace()
       if any([len(pitches) > SIMULTANEOUS_NOTES for pitches in pitch_slices]):
         tf.logging.warning(
             'NoteSequence %s:%s has more than %s simultaneous notes and will '
@@ -332,6 +333,7 @@ class TFRecordDurationAndPitchIterator(object):
     self._min_time_data = np.min(all_ds)
     self._max_time_data = np.max(all_ds)
 
+    import pdb;pdb.set_trace()
     truncate = len(all_ds) - len(all_ds) % minibatch_size
     all_ds = all_ds[:truncate]
     all_ps = all_ps[:truncate]
@@ -339,6 +341,7 @@ class TFRecordDurationAndPitchIterator(object):
     # transpose necessary to preserve data structure!
     # cut the audio into long contiguous subsequences based on the minibatch
     # size.
+    import pdb;pdb.set_trace()
     all_ds = all_ds.transpose(1, 0)
     all_ds = all_ds.reshape(-1, minibatch_size,
                             all_ds.shape[1] // minibatch_size)

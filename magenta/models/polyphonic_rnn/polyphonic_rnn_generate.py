@@ -46,9 +46,13 @@ def sample(model_ckpt, runtime, note_sequence_input, sample_path, sample_len,
       mm.note_sequence_io.note_sequence_record_iterator(
           note_sequence_input),
       polyphonic_rnn_lib.BATCH_SIZE, start_index=.9,
-      sequence_length=30)
+      sequence_length=1)
   valid_itr.reset()
   duration_mb, note_mb = valid_itr.next()
+
+  import pdb;pdb.set_trace()
+  polyphonic_rnn_lib.duration_and_pitch_to_midi(
+      sample_path + '/gt_%i.mid' % runtime, duration_mb[:, 0], note_mb[:, 0])
 
   graph = polyphonic_rnn_graph.Graph()
 
