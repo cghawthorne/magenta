@@ -30,7 +30,6 @@ from magenta.protobuf import music_pb2
 # This list represents the duration times (in seconds) that are supported.
 # If an input NoteSequence contains a note duration that is not in this list,
 # the entire NoteSequence will be discarded.
-# TODO(fjord): this filtering should happen at dataset creation time.
 TIME_CLASSES = [0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0]
 
 # How many simultaneous notes to allow.
@@ -209,14 +208,17 @@ def duration_and_pitch_to_midi(filename, durations, pitches, prime_until=0):
   tempos.qpm = 120
 
   # Translate durations from TIME_CLASSES indexes to TIME_CLASSES values.
+  # First, find the data to change, then change it.
+  # If we don't do this as separate steps, we'll end up changing some data
+  # more than once.
   dt = copy.deepcopy(durations)
-  for i, time_class in enumerate(TIME_CLASSES):
-    dt[dt == i] = time_class
+  time_class_indexes = []
+  for i in range(len(TIME_CLASSES)):
+    time_class_indexes.append(dt == i)
+  for i, time in enumerate(TIME_CLASSES):
+    dt[time_class_indexes[i]] = time
 
-  # TODO: Decoded times seem to be ~8x longer than they should be (in seconds)
-  # Should figure out why this is. Could be a problem with how times are stored
-  # in the model, or maybe a problem with input data.
-  delta_times = [dt[..., i] / 8 for i in range(SIMULTANEOUS_NOTES)]
+  delta_times = [dt[..., i] for i in range(SIMULTANEOUS_NOTES)]
   end_times = [delta_times[i].cumsum(axis=0) for i in range(SIMULTANEOUS_NOTES)]
   start_times = [end_times[i] - delta_times[i]
                  for i in range(SIMULTANEOUS_NOTES)]
@@ -392,12 +394,18 @@ class TFRecordDurationAndPitchIterator(object):
     e = s + self.sequence_length
     if e > self.stop_index:
       raise StopIteration('End of file iterator reached!')
-    time_data = self._time_data[s:e]
-    for n, i in enumerate(TIME_CLASSES):
-      # turn them into duration classes
-      time_data[time_data == i] = n
-    time_data = time_data
-    pitch_data = self._pitch_data[s:e]
+    time_data = np.array(self._time_data[s:e])
+
+    # Translate durations from TIME_CLASSES values to TIME_CLASSES indexes.
+    # First, find the data to change, then change it.
+    # If we don't do this as separate steps, we'll end up changing some data
+    # more than once.
+    time_class_indexes = []
+    for time in TIME_CLASSES:
+      time_class_indexes.append(time_data == time)
+    for i in range(len(TIME_CLASSES)):
+      time_data[time_class_indexes[i]] = i
+    pitch_data = np.array(self._pitch_data[s:e])
 
     if self.make_mask is False:
       res = (time_data, pitch_data)

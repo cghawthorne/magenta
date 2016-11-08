@@ -39,7 +39,8 @@ tf.app.flags.DEFINE_string(
 
 
 def _loop(graph, itr, sess, inits=None, do_updates=True):
-  i_h1 = np.zeros((graph.batch_size, graph.rnn_dim)).astype('float32')
+  i_h1 = np.zeros(
+      (polyphonic_rnn_lib.BATCH_SIZE, graph.rnn_dim)).astype('float32')
   duration_mb, note_mb = next(itr)
   x_note_mb = note_mb[:-1]
   y_note_mb = note_mb[1:]

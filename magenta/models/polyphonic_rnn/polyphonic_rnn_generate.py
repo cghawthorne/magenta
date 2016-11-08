@@ -46,7 +46,7 @@ def sample(model_ckpt, runtime, note_sequence_input, sample_path, sample_len,
       mm.note_sequence_io.note_sequence_record_iterator(
           note_sequence_input),
       polyphonic_rnn_lib.BATCH_SIZE, start_index=.9,
-      sequence_length=polyphonic_rnn_lib.SEQUENCE_LENGTH)
+      sequence_length=30)
   valid_itr.reset()
   duration_mb, note_mb = valid_itr.next()
 
