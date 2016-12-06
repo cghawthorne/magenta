@@ -92,20 +92,19 @@ class PolyphonyPlanningEncoderDecoder(
   @property
   def input_size(self):
     return (len(EVENT_CLASSES_WITH_PITCH) * PITCH_CLASSES +
-            2 + # START and END events
-            # STEP_END event which includes "key" for upcoming steps and whether
-            # or not an END event is coming up.
-            1 + NOTES_PER_OCTAVE + 1 +
-            # Which step within the measure we're on.
-            self._steps_per_measure)
+            3 +  # START, END, STEP_END events
+            NOTES_PER_OCTAVE +  # Key for upcoming steps
+            1 +  # Whether an END event is coming up
+            self._steps_per_measure  # Which step within the measure we're on.
+            )
 
   @property
   def num_classes(self):
     return (len(EVENT_CLASSES_WITH_PITCH) * PITCH_CLASSES +
-            2 + # START and END events
-            # STEP_END event which includes "key" for upcoming steps and whether
-            # or not an END event is coming up.
-            1 + NOTES_PER_OCTAVE + 1)
+            3 +  # START, END, STEP_END events
+            NOTES_PER_OCTAVE +  # Key for upcoming steps
+            1 +  # Whether an END event is coming up
+            )
 
   @property
   def default_event_label(self):
@@ -121,9 +120,9 @@ class PolyphonyPlanningEncoderDecoder(
       [256]: Sequence START
       [257]: Sequence END
       [258]: STEP_END
-      [259, 270]: Key for upcoming lookahead steps (only for STEP_END)
-      [271]: Whether END happens within lookahead steps (only for STEP_END)
-      [272, 272 + self._steps_per_measure): Current step within measure
+      [259, 270]: Key for upcoming lookahead steps
+      [271]: Whether END happens within lookahead steps
+      [272, 272 + self._steps_per_measure): Current step within measure.
 
     Args:
       events: A PolyphonicSequence object.
@@ -139,8 +138,79 @@ class PolyphonyPlanningEncoderDecoder(
              event.pitch] = 1.0
     offset += 256
 
-    if event.event_t
+    if event.event_type == PolyphonicEvent.START:
+      input_[offset] = 1.0
+    offset += 1
 
+    if event.event_type == PolyphonicEvent.END:
+      input_[offset] = 1.0
+    offset += 1
+
+    if event.event_type == PolyphonicEvent.STEP_END:
+      input_[offset] = 1.0
+    offset += 1
+
+    input_[offset + _get_lookahead_key(events, position)] = 1.0
+    offset += 12
+
+    if _is_end_within_lookahead(events, position):
+      input_[offset] = 1.0
+    offset += 1
+
+    input_[offset + _get_step_within_measure(events, position)] = 1.0
+
+    return input_
+
+  def _get_lookahead_key(self, events, position):
+    pitches = np.zeros(constants.NOTES_PER_OCTAVE)
+    step_counter = 0
+    lookahead_position = position
+    while (current_position < len(events) and
+           step_counter < self._lookahead_steps):
+      event = events[lookahead_position]
+      if event.event_type is in EVENT_CLASSES_WITH_PITCH:
+        pitches[event.pitch % constants.NOTES_PER_OCTAVE] += 1
+      elif event.event_type == PolyphonicEvent.STEP_END:
+        step_counter += 1
+      lookahead_position += 1
+
+    keys = zp.zeros(constants.NOTES_PER_OCTAVE)
+    for note, count in enumerate(pitches):
+      keys[constants.NOTE_KEYS[note]] += count
+
+    return keys.argmax()
+
+  def _is_end_within_lookahead(events, position):
+    for i in range(position, len(events)):
+      if events[i].event_type == PolyphonicEvent.END:
+        return True
+    return False
+
+  def _get_step_within_measure(self, events, position):
+    step_counter = 0
+    for i in range(position + 1):
+      if events[i].event_type == PolyphonicEvent.STEP_END:
+        step_counter += 1
+    return step_counter % self._steps_per_measure
+
+  def events_to_label(self, events, position):
+    """Returns the label for the given position in the sequence.
+
+    Indices:
+      [0, 127]: New note playing at this pitch
+      [128, 255]: Continued note playing at this pitch
+      [256]: Sequence START
+      [257]: Sequence END
+      [258]: STEP_END
+      [259, 270]: Key for upcoming lookahead steps
+      [271]: Whether END happens within lookahead steps
+
+    Args:
+      events: A PolyphonicSequence object.
+      position: An integer event position in the sequence.
+    Returns:
+      An label, an integer.
+    """
 
   def decode_event(self, index):
     if index < len(EVENT_CLASSES_WITHOUT_PITCH):
