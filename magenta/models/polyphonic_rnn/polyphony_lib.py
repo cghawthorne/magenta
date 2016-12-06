@@ -76,7 +76,7 @@ class PolyphonicSequence(events_lib.EventSequence):
   """
 
   def __init__(self, quantized_sequence=None, steps_per_quarter=None,
-               start_step=0):
+               start_step=0, events=None):
     """Construct a PolyphonicSequence.
 
     Either quantized_sequence or steps_per_quarter should be supplied.
@@ -87,8 +87,14 @@ class PolyphonicSequence(events_lib.EventSequence):
       start_step: The offset of this sequence relative to the
           beginning of the source sequence. If a quantized sequence is used as
           input, only notes starting after this step will be considered.
+      events: An event list to use in this sequence.
     """
-    assert (quantized_sequence, steps_per_quarter).count(None) == 1
+    if (quantized_sequence, steps_per_quarter).count(None) != 1:
+      raise ValueError(
+          'quantized_sequence and steps_per_quarter cannot both be specified.')
+    if events and not steps_per_quarter:
+      raise ValueError(
+          'events and steps_per_quarter must be specified together.')
 
     if quantized_sequence:
       sequences_lib.assert_is_quantized_sequence(quantized_sequence)
@@ -97,9 +103,12 @@ class PolyphonicSequence(events_lib.EventSequence):
       self._steps_per_quarter = (
           quantized_sequence.quantization_info.steps_per_quarter)
     else:
-      self._events = [
-          PolyphonicEvent(event_type=PolyphonicEvent.START, pitch=None)]
       self._steps_per_quarter = steps_per_quarter
+      if events:
+        self._events = events
+      else:
+        self._events = [
+            PolyphonicEvent(event_type=PolyphonicEvent.START, pitch=None)]
 
     self._start_step = start_step
 
@@ -198,6 +207,10 @@ class PolyphonicSequence(events_lib.EventSequence):
   def __iter__(self):
     """Return an iterator over the events in this sequence."""
     return iter(self._events)
+
+  def __getslice__(self, i, j):
+    """Returns the events in the given slice range."""
+    return self._events[i:j]
 
   def __str__(self):
     strs = []
