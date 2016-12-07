@@ -27,6 +27,7 @@ import tensorflow as tf
 
 from magenta.models.polyphonic_rnn import polyphony_lib
 from magenta.models.polyphonic_rnn import polyphony_model
+from magenta.models.polyphonic_rnn import polyphony_encoder_decoder
 
 from magenta.music import encoder_decoder
 from magenta.music import sequences_lib
@@ -153,8 +154,10 @@ def get_pipeline(config, steps_per_quarter, min_steps, max_steps, eval_ratio):
       poly_extractor_eval: transposition_pipeline_eval,
   }
 
-  if isinstance(config.encoder_decoder,
-                ConditionedPolyphonyEventSequenceEncoderDecoder):
+  if isinstance(
+      config.encoder_decoder,
+      polyphony_encoder_decoder.ConditionedPolyphonyEventSequenceEncoderDecoder
+  ):
     step_seq_extractor_train = PolyphonicStepSequenceExtractor(
         name='PolyStepExtractorTrain')
     step_seq_extractor_eval = PolyphonicStepSequenceExtractor(
