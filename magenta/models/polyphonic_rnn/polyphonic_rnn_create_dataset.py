@@ -18,6 +18,7 @@ them to TensorFlow's SequenceExample protos for input to the polyphonic RNN
 models.
 """
 
+import collections
 import os
 
 # internal imports
@@ -35,6 +36,7 @@ from magenta.pipelines import pipelines_common
 from magenta.protobuf import music_pb2
 
 FLAGS = tf.app.flags.FLAGS
+tf.app.flags.DEFINE_string('config', 'polyphony', 'Config to use.')
 tf.app.flags.DEFINE_string('input', None,
                            'TFRecord to read NoteSequence protos from.')
 tf.app.flags.DEFINE_string('output_dir', None,
@@ -69,24 +71,45 @@ class PolyphonicSequenceExtractor(pipeline.Pipeline):
     return poly_seqs
 
 
-class PolyphonicKeySequenceExtractor(pipeline.Pipeline):
+PolySequenceAndStepSequence = collections.namedtuple(
+    'PolySequenceAndStepSequence', ['poly_seq', 'poly_step_seq'])
+
+
+class PolyphonicStepSequenceExtractor(pipeline.Pipeline):
   """Extracts polyphonic tracks from a quantized NoteSequence."""
 
-  def __init__(self, min_steps, max_steps, name=None):
-    super(PolyphonicKeySequenceExtractor, self).__init__(
-        input_type=polyphony_lib.,
-        output_type=polyphony_lib.PolyphonicSequence,
+  def __init__(self, name=None):
+    super(PolyphonicStepSequenceExtractor, self).__init__(
+        input_type=polyphony_lib.PolyphonicSequence,
+        output_type=PolySequenceAndStepSequence,
         name=name)
-    self._min_steps = min_steps
-    self._max_steps = max_steps
 
-  def transform(self, quantized_sequence):
-    poly_seqs, stats = polyphony_lib.extract_polyphonic_sequences(
-        quantized_sequence,
-        min_steps_discard=self._min_steps,
-        max_steps_discard=self._max_steps)
-    self._set_stats(stats)
-    return poly_seqs
+  def transform(self, polyphonic_sequence):
+    poly_step_seq = polyphony_lib.PolyphonicStepSequence(
+        polyphonic_sequence=polyphonic_sequence)
+    return [PolySequenceAndStepSequence(polyphonic_sequence, poly_step_seqs)]
+
+
+class ConditionedEncoderPipeline(pipeline.Pipeline):
+  def __init__(self, encoder_decoder, name=None):
+    """Constructs an EncoderPipeline.
+
+    Args:
+      input_type: The type this pipeline expects as input.
+      encoder_decoder: An EventSequenceEncoderDecoder.
+      name: A unique pipeline name.
+    """
+    super(ConditionedEncoderPipeline, self).__init__(
+        input_type=PolySequenceAndStepSequence,
+        output_type=tf.train.SequenceExample,
+        name=name)
+    self._encoder_decoder = encoder_decoder
+
+  def transform(self, seq_and_step_seq):
+    import pdb;pdb.set_trace()
+    encoded = self._encoder_decoder.encode(
+        seq_and_step_seq.poly_step_seq, seq_and_step_seq.poly_seq)
+    return [encoded]
 
 
 def get_pipeline(config, steps_per_quarter, min_steps, max_steps, eval_ratio):
@@ -116,27 +139,55 @@ def get_pipeline(config, steps_per_quarter, min_steps, max_steps, eval_ratio):
       min_steps=min_steps, max_steps=max_steps, name='PolyExtractorTrain')
   poly_extractor_eval = PolyphonicSequenceExtractor(
       min_steps=min_steps, max_steps=max_steps, name='PolyExtractorEval')
-  encoder_pipeline_train = encoder_decoder.EncoderPipeline(
-      polyphony_lib.PolyphonicSequence, config.encoder_decoder,
-      name='EncoderPipelineTrain')
-  encoder_pipeline_eval = encoder_decoder.EncoderPipeline(
-      polyphony_lib.PolyphonicSequence, config.encoder_decoder,
-      name='EncoderPipelineEval')
   partitioner = pipelines_common.RandomPartition(
       music_pb2.NoteSequence,
       ['eval_poly_tracks', 'training_poly_tracks'],
       [eval_ratio])
 
-  dag = {quantizer: dag_pipeline.DagInput(music_pb2.NoteSequence),
-         partitioner: quantizer,
-         transposition_pipeline_train: partitioner['training_poly_tracks'],
-         transposition_pipeline_eval: partitioner['eval_poly_tracks'],
-         poly_extractor_train: transposition_pipeline_train,
-         poly_extractor_eval: transposition_pipeline_eval,
-         encoder_pipeline_train: poly_extractor_train,
-         encoder_pipeline_eval: poly_extractor_eval,
-         dag_pipeline.DagOutput('training_poly_tracks'): encoder_pipeline_train,
-         dag_pipeline.DagOutput('eval_poly_tracks'): encoder_pipeline_eval}
+  dag = {
+      quantizer: dag_pipeline.DagInput(music_pb2.NoteSequence),
+      partitioner: quantizer,
+      transposition_pipeline_train: partitioner['training_poly_tracks'],
+      transposition_pipeline_eval: partitioner['eval_poly_tracks'],
+      poly_extractor_train: transposition_pipeline_train,
+      poly_extractor_eval: transposition_pipeline_eval,
+  }
+
+  if isinstance(config.encoder_decoder,
+                ConditionedPolyphonyEventSequenceEncoderDecoder):
+    step_seq_extractor_train = PolyphonicStepSequenceExtractor(
+        name='PolyStepExtractorTrain')
+    step_seq_extractor_eval = PolyphonicStepSequenceExtractor(
+        name='PolyStepExtractorEval')
+    encoder_pipeline_train = ConditionedEncoderPipeline(
+        config.encoder_decoder, name='EncoderPipelineTrain')
+    encoder_pipeline_eval = ConditionedEncoderPipeline(
+        config.encoder_decoder, name='EncoderPipelineEval')
+
+    dag.update({
+        step_seq_extractor_train: poly_extractor_train,
+        step_seq_extractor_eval: poly_extractor_eval,
+        encoder_pipeline_train: step_seq_extractor_train,
+        encoder_pipeline_eval: step_seq_extractor_eval,
+        dag_pipeline.DagOutput('training_poly_tracks'):
+           encoder_pipeline_train,
+        dag_pipeline.DagOutput('eval_poly_tracks'): encoder_pipeline_eval
+    })
+  else:
+    encoder_pipeline_train = encoder_decoder.EncoderPipeline(
+        polyphony_lib.PolyphonicSequence, config.encoder_decoder,
+        name='EncoderPipelineTrain')
+    encoder_pipeline_eval = encoder_decoder.EncoderPipeline(
+        polyphony_lib.PolyphonicSequence, config.encoder_decoder,
+        name='EncoderPipelineEval')
+
+    dag.update({
+        encoder_pipeline_train: poly_extractor_train,
+        encoder_pipeline_eval: poly_extractor_eval,
+        dag_pipeline.DagOutput('training_poly_tracks'):
+           encoder_pipeline_train,
+        dag_pipeline.DagOutput('eval_poly_tracks'): encoder_pipeline_eval
+    })
   return dag_pipeline.DAGPipeline(dag)
 
 
@@ -148,7 +199,7 @@ def main(unused_argv):
       min_steps=80,  # 5 measures
       max_steps=512,
       eval_ratio=FLAGS.eval_ratio,
-      config=polyphony_model.default_configs['polyphony'])
+      config=polyphony_model.default_configs[FLAGS.config])
 
   input_dir = os.path.expanduser(FLAGS.input)
   output_dir = os.path.expanduser(FLAGS.output_dir)

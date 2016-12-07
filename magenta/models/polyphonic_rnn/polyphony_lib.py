@@ -432,7 +432,13 @@ def extract_polyphonic_sequences(
   stats = dict([(stat_name, statistics.Counter(stat_name)) for stat_name in
                 ['polyphonic_tracks_discarded_too_short',
                  'polyphonic_tracks_discarded_too_long',
+                 'polyphonic_tracks_discarded_not_4_4',
                  'polyphonic_tracks_discarded_more_than_1_program']])
+
+    if (quantized_sequence.time_signatures[0].numerator != 4 or
+        quantized_sequence.time_signatures[0].denominator != 4):
+      stats['polyphonic_tracks_discarded_not_4_4'].increment()
+      return [], stats.values()
 
   steps_per_bar = sequences_lib.steps_per_bar_in_quantized_sequence(
       quantized_sequence)

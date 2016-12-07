@@ -127,6 +127,7 @@ class ConditionedPolyphonyEventSequenceEncoderDecoder(
             PolyphonyOneHotEncoding()))
 
   def events_to_input(self, control_events, target_events, position):
+    # TODO(fjord): could also encode step within measure here.
     control_events_expanded = copy.deepcopy(control_events)
     control_events_expanded.add_note_events_to_fit_polyphonic_sequence(
         target_events, position + 1)
