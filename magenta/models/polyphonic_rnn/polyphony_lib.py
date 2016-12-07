@@ -477,19 +477,19 @@ class PolyphonicStepEvent(object):
   END = 1
   # End of a step within the sequence.
   STEP_END = 2
+  # A new note or continued note event.
+  NOTE = 3
 
   # Key is unknown
   UNKNOWN_KEY = -1
 
   def __init__(self, event_type, key, upcoming_end):
     if not (PolyphonicStepEvent.START <= event_type <=
-            PolyphonicStepEvent.STEP_END):
+            PolyphonicStepEvent.NOTE):
       raise ValueError('Invalid event type: %s' % event_type)
-    if not (key is None or
-            PolyphonicStepEvent.UNKNOWN_KEY <= key <=
-            constants.NOTES_PER_OCTAVE):
+    if not 0 <= key < constants.NOTES_PER_OCTAVE:
       raise ValueError('Invalid key: %s' % key)
-    if upcoming_end not in (True, False, None):
+    if not isinstance(upcoming_end, bool):
       raise ValueError('Invalid upcoming_end: %s' % upcoming_end)
 
     self.event_type = event_type
@@ -514,7 +514,7 @@ class PolyphonicStepSequence(events_lib.SimpleEventSequence):
   Events are PolyphonicEvent tuples that encode event type and pitch.
   """
 
-  def __init__(self, polyphonic_sequence, lookahead_steps=16):
+  def __init__(self, events=None, start_step=0, steps_per_quarter=4, polyphonic_sequence=None, lookahead_steps=16):
     """Construct a PolyphonicSequence.
 
     Either quantized_sequence or steps_per_quarter should be supplied.
@@ -527,16 +527,34 @@ class PolyphonicStepSequence(events_lib.SimpleEventSequence):
           input, only notes starting after this step will be considered.
       events: An event list to use in this sequence.
     """
+    # !!! should not be member field
     self._lookahead_steps = lookahead_steps
-    events = self._from_polyphonic_sequence(polyphonic_sequence)
-    # TODO(fjord): probably need to be more intelligent about upcoming_end
-    pad_event = PolyphonicStepEvent(
-        event_type=PolyphonicStepEvent.STEP_END,
-        key=PolyphonicStepEvent.UNKNOWN_KEY, upcoming_end=False)
+
+    if (events, polyphonic_sequence).count(None) != 1:
+      raise ValueError(
+          'events and polyphonic_sequence cannot both be specified.')
+    if polyphonic_sequence:
+      events = self._from_polyphonic_sequence(polyphonic_sequence)
+      start_step = polyphonic_sequence.start_step
+      steps_per_quarter = polyphonic_sequence.steps_per_quarter
+
+    # TODO(fjord): pad_event should never actually be used.
+    pad_event = None
+
     super(PolyphonicStepSequence, self).__init__(
         pad_event=pad_event, events=events,
-        start_step=polyphonic_sequence.start_step,
-        steps_per_quarter=polyphonic_sequence.steps_per_quarter)
+        start_step=start_step, steps_per_quarter=steps_per_quarter)
+
+  def __deepcopy__(self, unused_memo=None):
+    return type(self)(events=copy.deepcopy(self._events),
+                      start_step=self.start_step,
+                      steps_per_quarter=self.steps_per_quarter)
+
+  def __eq__(self, other):
+    if not isinstance(other, PolyphonicStepSequence):
+      return False
+    else:
+      return super(PolyphonicStepSequence, self).__eq__(other)
 
   def _from_polyphonic_sequence(self, polyphonic_sequence):
     """Populate self with events from the given quantized NoteSequence object.
@@ -613,3 +631,31 @@ class PolyphonicStepSequence(events_lib.SimpleEventSequence):
         return True
       lookahead_position += 1
     return False
+
+  def add_note_events_to_fit_polyphonic_sequence(self, polyphonic_sequence, position):
+    # First, clear any existing note events.
+    events = [e for e in self._events
+              if e.event_type != PolyphonicStepEvent.NOTE]
+
+    # Ensure both start with START.
+    if not (events[0].event_type == PolyphonicStepEvent.START and
+            polyphonic_sequence[0].event_type == PolyphonicEvent.START):
+      raise ValueError('Both sequences must start with a START event')
+
+    for i in range(1, position):
+      if ((polyphonic_sequence[i].event_type == PolyphonicEvent.STEP_END and
+           events[i].event_type == PolyphonicStepEvent.STEP_END) or
+          (polyphonic_sequence[i].event_type == PolyphonicEvent.END and
+           events[i].event_type == PolyphonicStepEvent.END)):
+        continue
+
+      # Otherwise, the event in polyphonic_sequence is a note event or an
+      # unexpected START/END event. So add in filler NOTE events.
+      events.insert(i, copy.deepcopy(events[i - 1]))
+      events[i].event_type = PolyphonicStepEvent.NOTE
+
+    # Copy last event to condition future predictions.
+    events.insert(position, copy.deepcopy(events[position - 1]))
+    events[position].event_type = PolyphonicStepEvent.NOTE
+
+    self._events = events

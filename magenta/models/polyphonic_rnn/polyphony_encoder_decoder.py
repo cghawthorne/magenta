@@ -14,6 +14,7 @@
 """Classes for converting between polyphonic input and model input/output."""
 
 from __future__ import division
+import copy
 
 # internal imports
 
@@ -83,7 +84,7 @@ class PolyphonyStepOneHotEncoding(encoder_decoder.OneHotEncoding):
   @property
   def num_classes(self):
     return (
-        3 *  # START, STEP_END, END
+        4 *  # START, END, STEP_END, NOTE
         2 *  # with and without upcoming_end
         NOTES_PER_OCTAVE  # Major keys
     )
@@ -109,9 +110,25 @@ class PolyphonyStepOneHotEncoding(encoder_decoder.OneHotEncoding):
     offset = index
     event_type = offset // (NOTES_PER_OCTAVE * 2)
     offset = offset % (NOTES_PER_OCTAVE * 2)
-    upcoming_end = offset // NOTES_PER_OCTAVE
+    upcoming_end = bool(offset // NOTES_PER_OCTAVE)
     offset = offset % NOTES_PER_OCTAVE
     key = offset
     return PolyphonicStepEvent(
         event_type=event_type, key=key, upcoming_end=upcoming_end)
 
+
+class ConditionedPolyphonyEventSequenceEncoderDecoder(
+    encoder_decoder.ConditionalEventSequenceEncoderDecoder):
+  def __init__(self):
+    super(ConditionedPolyphonyEventSequenceEncoderDecoder, self).__init__(
+        encoder_decoder.OneHotEventSequenceEncoderDecoder(
+            PolyphonyStepOneHotEncoding()),
+        encoder_decoder.OneHotEventSequenceEncoderDecoder(
+            PolyphonyOneHotEncoding()))
+
+  def events_to_input(self, control_events, target_events, position):
+    control_events_expanded = copy.deepcopy(control_events)
+    control_events_expanded.add_note_events_to_fit_polyphonic_sequence(
+        target_events, position + 1)
+    return (super(ConditionedPolyphonyEventSequenceEncoderDecoder, self).
+     events_to_input(control_events_expanded, target_events, position))

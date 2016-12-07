@@ -585,11 +585,139 @@ class PolyphonyLibTest(tf.test.TestCase):
     for event in poly_events:
       poly_seq.append(event)
 
-    pss = polyphony_lib.PolyphonicStepSequence(poly_seq, lookahead_steps=1)
+    pss = polyphony_lib.PolyphonicStepSequence(
+        polyphonic_sequence=poly_seq, lookahead_steps=1)
 
     pse = polyphony_lib.PolyphonicStepEvent
     expected_poly_step_events = [
         pse(pse.START, 0, False),     # C
+        pse(pse.STEP_END, 0, False),  # C
+        pse(pse.STEP_END, 2, False),  # D
+        pse(pse.STEP_END, 1, False),  # C#
+        pse(pse.STEP_END, 0, True),
+        pse(pse.END, 0, False),
+    ]
+
+    self.assertEqual(expected_poly_step_events, list(pss))
+
+  def testExpandPolyphonicStepSequence(self):
+    poly_seq = polyphony_lib.PolyphonicSequence(steps_per_quarter=1)
+
+    pe = polyphony_lib.PolyphonicEvent
+    poly_events = [
+        # step 0 - C
+        pe(pe.NEW_NOTE, 64),
+        pe(pe.NEW_NOTE, 60),
+        pe(pe.STEP_END, None),
+        # step 1 - C
+        pe(pe.NEW_NOTE, 67),
+        pe(pe.CONTINUED_NOTE, 64),
+        pe(pe.CONTINUED_NOTE, 60),
+        pe(pe.STEP_END, None),
+        # step 2 - D
+        pe(pe.NEW_NOTE, 69),
+        pe(pe.NEW_NOTE, 66),
+        pe(pe.NEW_NOTE, 62),
+        pe(pe.STEP_END, None),
+        # step 3 - C#
+        pe(pe.NEW_NOTE, 61),
+        pe(pe.STEP_END, None),
+
+        pe(pe.END, None),
+    ]
+    for event in poly_events:
+      poly_seq.append(event)
+
+    pss = polyphony_lib.PolyphonicStepSequence(
+        polyphonic_sequence=poly_seq, lookahead_steps=1)
+
+    pss.add_note_events_to_fit_polyphonic_sequence(poly_seq, len(poly_seq) - 1)
+
+    pse = polyphony_lib.PolyphonicStepEvent
+    expected_poly_step_events = [
+        pse(pse.START, 0, False),     # C
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.STEP_END, 0, False),  # C
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.STEP_END, 2, False),  # D
+        pse(pse.NOTE, 2, False),
+        pse(pse.NOTE, 2, False),
+        pse(pse.NOTE, 2, False),
+        pse(pse.STEP_END, 1, False),  # C#
+        pse(pse.NOTE, 1, False),
+        pse(pse.STEP_END, 0, True),
+        pse(pse.NOTE, 0, True),
+        pse(pse.END, 0, False),
+    ]
+
+    self.assertEqual(expected_poly_step_events, list(pss))
+
+  def testExpandUnfinishedPolyphonicStepSequence(self):
+    poly_seq = polyphony_lib.PolyphonicSequence(steps_per_quarter=1)
+
+    pe = polyphony_lib.PolyphonicEvent
+    poly_events = [
+        # step 0 - C
+        pe(pe.NEW_NOTE, 64),
+        pe(pe.NEW_NOTE, 60),
+        pe(pe.STEP_END, None),
+        # step 1 - C
+        pe(pe.NEW_NOTE, 67),
+        pe(pe.CONTINUED_NOTE, 64),
+        pe(pe.CONTINUED_NOTE, 60),
+        pe(pe.STEP_END, None),
+        # step 2 - D
+        pe(pe.NEW_NOTE, 69),
+        pe(pe.NEW_NOTE, 66),
+    ]
+    for event in poly_events:
+      poly_seq.append(event)
+
+    pse = polyphony_lib.PolyphonicStepEvent
+    poly_step_events = [
+        pse(pse.START, 0, False),     # C
+        pse(pse.STEP_END, 0, False),  # C
+        pse(pse.STEP_END, 2, False),  # D
+        pse(pse.STEP_END, 1, False),  # C#
+        pse(pse.STEP_END, 0, True),
+        pse(pse.END, 0, False),
+    ]
+    pss = polyphony_lib.PolyphonicStepSequence(
+        events=poly_step_events, lookahead_steps=1)
+
+    pss.add_note_events_to_fit_polyphonic_sequence(poly_seq, len(poly_seq))
+
+    pse = polyphony_lib.PolyphonicStepEvent
+    expected_poly_step_events = [
+        pse(pse.START, 0, False),     # C
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.STEP_END, 0, False),  # C
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.STEP_END, 2, False),  # D
+        pse(pse.NOTE, 2, False),
+        pse(pse.NOTE, 2, False),
+        pse(pse.NOTE, 2, False),  # Duplicated
+        pse(pse.STEP_END, 1, False),  # C#
+        pse(pse.STEP_END, 0, True),
+        pse(pse.END, 0, False),
+    ]
+
+    self.assertEqual(expected_poly_step_events, list(pss))
+
+    pss.add_note_events_to_fit_polyphonic_sequence(poly_seq, 3)
+
+    pse = polyphony_lib.PolyphonicStepEvent
+    expected_poly_step_events = [
+        pse(pse.START, 0, False),     # C
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),
+        pse(pse.NOTE, 0, False),  # Duplicated
         pse(pse.STEP_END, 0, False),  # C
         pse(pse.STEP_END, 2, False),  # D
         pse(pse.STEP_END, 1, False),  # C#

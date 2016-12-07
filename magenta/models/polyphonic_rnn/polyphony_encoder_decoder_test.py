@@ -18,6 +18,7 @@
 import tensorflow as tf
 
 from magenta.models.polyphonic_rnn import polyphony_encoder_decoder
+from magenta.models.polyphonic_rnn import polyphony_lib
 from magenta.models.polyphonic_rnn.polyphony_lib import PolyphonicEvent
 from magenta.models.polyphonic_rnn.polyphony_lib import PolyphonicStepEvent
 
@@ -106,6 +107,68 @@ class PolyphonyStepOneHotEncodingTest(tf.test.TestCase):
     decoded_event = self.enc.decode_event(index)
     self.assertEqual(test_event, decoded_event)
 
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.NOTE, key=0, upcoming_end=False)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(72, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
+
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.NOTE, key=1, upcoming_end=True)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(85, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
+
+
+class ConditionedPolyphonyEventSequenceEncoderDecoderTest(tf.test.TestCase):
+
+  def setUp(self):
+    self.enc = polyphony_encoder_decoder.ConditionedPolyphonyEventSequenceEncoderDecoder()
+
+  def testEncode(self):
+    poly_seq = polyphony_lib.PolyphonicSequence(steps_per_quarter=1)
+
+    pe = polyphony_lib.PolyphonicEvent
+    poly_events = [
+        # step 0 - C
+        pe(pe.NEW_NOTE, 64),
+        pe(pe.NEW_NOTE, 60),
+        pe(pe.STEP_END, None),
+        # step 1 - D
+        pe(pe.NEW_NOTE, 69),
+        pe(pe.NEW_NOTE, 66),
+    ]
+    for event in poly_events:
+      poly_seq.append(event)
+
+    pse = polyphony_lib.PolyphonicStepEvent
+    poly_step_events = [
+        pse(pse.START, 0, False),     # C
+        pse(pse.STEP_END, 2, False),  # D
+        pse(pse.STEP_END, 1, False),  # C#
+        pse(pse.STEP_END, 0, True),
+        pse(pse.END, 0, False),
+    ]
+    pss = polyphony_lib.PolyphonicStepSequence(
+        events=poly_step_events, lookahead_steps=1)
+
+    encoded = self.enc.events_to_input(pss, poly_seq, 0)
+    self.assertEqual(1.0, encoded[72])      # NOTE, 0, False
+    self.assertEqual(1.0, encoded[96 + 0])  # START
+
+    encoded = self.enc.events_to_input(pss, poly_seq, 1)
+    self.assertEqual(1.0, encoded[72])       # NOTE, 0, False
+    self.assertEqual(1.0, encoded[96 + 67])  # NEW_NOTE, 64
+
+    encoded = self.enc.events_to_input(pss, poly_seq, 2)
+    self.assertEqual(1.0, encoded[72])       # NOTE, 0, False
+    self.assertEqual(1.0, encoded[96 + 63])  # NEW_NOTE, 60
+
+    encoded = self.enc.events_to_input(pss, poly_seq, 3)
+    self.assertEqual(1.0, encoded[74])      # NOTE, 2, False
+    self.assertEqual(1.0, encoded[96 + 2])  # STEP_END
 
 if __name__ == '__main__':
   tf.test.main()
