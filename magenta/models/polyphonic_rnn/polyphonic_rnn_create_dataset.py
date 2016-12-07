@@ -69,6 +69,26 @@ class PolyphonicSequenceExtractor(pipeline.Pipeline):
     return poly_seqs
 
 
+class PolyphonicKeySequenceExtractor(pipeline.Pipeline):
+  """Extracts polyphonic tracks from a quantized NoteSequence."""
+
+  def __init__(self, min_steps, max_steps, name=None):
+    super(PolyphonicKeySequenceExtractor, self).__init__(
+        input_type=polyphony_lib.,
+        output_type=polyphony_lib.PolyphonicSequence,
+        name=name)
+    self._min_steps = min_steps
+    self._max_steps = max_steps
+
+  def transform(self, quantized_sequence):
+    poly_seqs, stats = polyphony_lib.extract_polyphonic_sequences(
+        quantized_sequence,
+        min_steps_discard=self._min_steps,
+        max_steps_discard=self._max_steps)
+    self._set_stats(stats)
+    return poly_seqs
+
+
 def get_pipeline(config, steps_per_quarter, min_steps, max_steps, eval_ratio):
   """Returns the Pipeline instance which creates the RNN dataset.
 

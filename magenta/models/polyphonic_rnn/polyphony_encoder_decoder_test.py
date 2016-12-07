@@ -19,6 +19,7 @@ import tensorflow as tf
 
 from magenta.models.polyphonic_rnn import polyphony_encoder_decoder
 from magenta.models.polyphonic_rnn.polyphony_lib import PolyphonicEvent
+from magenta.models.polyphonic_rnn.polyphony_lib import PolyphonicStepEvent
 
 
 class PolyphonyOneHotEncodingTest(tf.test.TestCase):
@@ -62,6 +63,48 @@ class PolyphonyOneHotEncodingTest(tf.test.TestCase):
     self.assertEqual(258, index)
     event = self.enc.decode_event(index)
     self.assertEqual(continued_max_note, event)
+
+
+class PolyphonyStepOneHotEncodingTest(tf.test.TestCase):
+
+  def setUp(self):
+    self.enc = polyphony_encoder_decoder.PolyphonyStepOneHotEncoding()
+
+  def testEncodeDecode(self):
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.START, key=0, upcoming_end=False)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(0, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
+
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.START, key=1, upcoming_end=False)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(1, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
+
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.STEP_END, key=0, upcoming_end=False)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(48, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
+
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.STEP_END, key=0, upcoming_end=True)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(60, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
+
+    test_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.STEP_END, key=1, upcoming_end=True)
+    index = self.enc.encode_event(test_event)
+    self.assertEqual(61, index)
+    decoded_event = self.enc.decode_event(index)
+    self.assertEqual(test_event, decoded_event)
 
 
 if __name__ == '__main__':

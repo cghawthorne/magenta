@@ -20,6 +20,7 @@ import copy
 
 # internal imports
 
+import numpy as np
 from six.moves import range  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
@@ -76,7 +77,7 @@ class PolyphonicSequence(events_lib.EventSequence):
   """
 
   def __init__(self, quantized_sequence=None, steps_per_quarter=None,
-               start_step=0, events=None):
+               start_step=0):
     """Construct a PolyphonicSequence.
 
     Either quantized_sequence or steps_per_quarter should be supplied.
@@ -87,14 +88,10 @@ class PolyphonicSequence(events_lib.EventSequence):
       start_step: The offset of this sequence relative to the
           beginning of the source sequence. If a quantized sequence is used as
           input, only notes starting after this step will be considered.
-      events: An event list to use in this sequence.
     """
     if (quantized_sequence, steps_per_quarter).count(None) != 1:
       raise ValueError(
           'quantized_sequence and steps_per_quarter cannot both be specified.')
-    if events and not steps_per_quarter:
-      raise ValueError(
-          'events and steps_per_quarter must be specified together.')
 
     if quantized_sequence:
       sequences_lib.assert_is_quantized_sequence(quantized_sequence)
@@ -104,11 +101,8 @@ class PolyphonicSequence(events_lib.EventSequence):
           quantized_sequence.quantization_info.steps_per_quarter)
     else:
       self._steps_per_quarter = steps_per_quarter
-      if events:
-        self._events = events
-      else:
-        self._events = [
-            PolyphonicEvent(event_type=PolyphonicEvent.START, pitch=None)]
+      self._events = [
+          PolyphonicEvent(event_type=PolyphonicEvent.START, pitch=None)]
 
     self._start_step = start_step
 
@@ -473,3 +467,149 @@ def extract_polyphonic_sequences(
         num_steps // steps_per_bar)
 
   return poly_seqs, stats.values()
+
+class PolyphonicStepEvent(object):
+  """Class for storing events in a polyphonic sequence."""
+
+  # Beginning of the sequence.
+  START = 0
+  # End of the sequence.
+  END = 1
+  # End of a step within the sequence.
+  STEP_END = 2
+
+  # Key is unknown
+  UNKNOWN_KEY = -1
+
+  def __init__(self, event_type, key, upcoming_end):
+    if not (PolyphonicStepEvent.START <= event_type <=
+            PolyphonicStepEvent.STEP_END):
+      raise ValueError('Invalid event type: %s' % event_type)
+    if not (key is None or
+            PolyphonicStepEvent.UNKNOWN_KEY <= key <=
+            constants.NOTES_PER_OCTAVE):
+      raise ValueError('Invalid key: %s' % key)
+    if upcoming_end not in (True, False, None):
+      raise ValueError('Invalid upcoming_end: %s' % upcoming_end)
+
+    self.event_type = event_type
+    self.key = key
+    self.upcoming_end = upcoming_end
+
+  def __repr__(self):
+    return 'PolyphonicStepEvent(%r, %r, %r)' % (
+        self.event_type, self.key, self.upcoming_end)
+
+  def __eq__(self, other):
+    if not isinstance(other, PolyphonicStepEvent):
+      return False
+    return (self.event_type == other.event_type and
+            self.key == other.key and
+            self.upcoming_end == other.upcoming_end)
+
+
+class PolyphonicStepSequence(events_lib.SimpleEventSequence):
+  """Stores a polyphonic sequence as a stream of single-note events.
+
+  Events are PolyphonicEvent tuples that encode event type and pitch.
+  """
+
+  def __init__(self, polyphonic_sequence, lookahead_steps=16):
+    """Construct a PolyphonicSequence.
+
+    Either quantized_sequence or steps_per_quarter should be supplied.
+
+    Args:
+      quantized_sequence: a quantized NoteSequence proto.
+      steps_per_quarter: how many steps a quarter note represents.
+      start_step: The offset of this sequence relative to the
+          beginning of the source sequence. If a quantized sequence is used as
+          input, only notes starting after this step will be considered.
+      events: An event list to use in this sequence.
+    """
+    self._lookahead_steps = lookahead_steps
+    events = self._from_polyphonic_sequence(polyphonic_sequence)
+    # TODO(fjord): probably need to be more intelligent about upcoming_end
+    pad_event = PolyphonicStepEvent(
+        event_type=PolyphonicStepEvent.STEP_END,
+        key=PolyphonicStepEvent.UNKNOWN_KEY, upcoming_end=False)
+    super(PolyphonicStepSequence, self).__init__(
+        pad_event=pad_event, events=events,
+        start_step=polyphonic_sequence.start_step,
+        steps_per_quarter=polyphonic_sequence.steps_per_quarter)
+
+  def _from_polyphonic_sequence(self, polyphonic_sequence):
+    """Populate self with events from the given quantized NoteSequence object.
+
+    Sequences start with START.
+
+    Within a step, new pitches are started with NEW_NOTE and existing
+    pitches are continued with CONTINUED_NOTE. A step is ended with
+    STEP_END. If an active pitch is not continued, it is considered to
+    have ended.
+
+    Sequences end with END.
+
+    Args:
+      quantized_sequence: A quantized NoteSequence instance.
+      start_step: Start converting the sequence at this time step.
+          Assumed to be the beginning of a bar.
+
+    Returns:
+      A list of events.
+    """
+    events = []
+
+    for i, pevent in enumerate(polyphonic_sequence):
+      if pevent.event_type in (
+          PolyphonicEvent.START, PolyphonicEvent.STEP_END, PolyphonicEvent.END):
+        key = self._get_lookahead_key(polyphonic_sequence, i)
+        upcoming_end = self._is_end_within_lookahead(polyphonic_sequence, i)
+
+        if pevent.event_type == PolyphonicEvent.START:
+          event_type = PolyphonicStepEvent.START
+        elif pevent.event_type == PolyphonicEvent.STEP_END:
+          event_type = PolyphonicStepEvent.STEP_END
+        elif pevent.event_type == PolyphonicEvent.END:
+          event_type = PolyphonicStepEvent.END
+        else:
+          raise ValueError('Unknown event_type: %s' % pevent.event_type)
+
+        events.append(PolyphonicStepEvent(
+            event_type=event_type,
+            key=key, upcoming_end=upcoming_end))
+
+    return events
+
+  def _get_lookahead_key(self, events, position):
+    pitches = np.zeros(constants.NOTES_PER_OCTAVE)
+    step_counter = 0
+    lookahead_position = position + 1
+    while (lookahead_position < len(events) and
+           step_counter < self._lookahead_steps):
+      event = events[lookahead_position]
+      if event.event_type in (
+          PolyphonicEvent.NEW_NOTE, PolyphonicEvent.CONTINUED_NOTE):
+        pitches[event.pitch % constants.NOTES_PER_OCTAVE] += 1
+      elif event.event_type == PolyphonicEvent.STEP_END:
+        step_counter += 1
+      lookahead_position += 1
+
+    keys = np.zeros(constants.NOTES_PER_OCTAVE)
+    for note, count in enumerate(pitches):
+      keys[constants.NOTE_KEYS[note]] += count
+
+    return keys.argmax()
+
+  def _is_end_within_lookahead(self, events, position):
+    step_counter = 0
+    lookahead_position = position + 1
+    while (lookahead_position < len(events) and
+           step_counter < self._lookahead_steps):
+      event = events[lookahead_position]
+      if event.event_type == PolyphonicEvent.STEP_END:
+        step_counter += 1
+      elif event.event_type == PolyphonicEvent.END:
+        return True
+      lookahead_position += 1
+    return False
