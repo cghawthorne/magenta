@@ -644,10 +644,10 @@ class ConditionalEventSequenceEncoderDecoder(object):
       ValueError: If the control and target event sequences have different
           length.
     """
-    if len(control_events) != len(target_events):
-      raise ValueError('must have the same number of control and target events '
-                       '(%d control events but %d target events)' % (
-                           len(control_events), len(target_events)))
+    #if len(control_events) != len(target_events):
+    #  raise ValueError('must have the same number of control and target events '
+    #                   '(%d control events but %d target events)' % (
+    #                       len(control_events), len(target_events)))
 
     inputs = []
     labels = []

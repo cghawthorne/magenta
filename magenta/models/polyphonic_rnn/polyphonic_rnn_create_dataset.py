@@ -88,7 +88,7 @@ class PolyphonicStepSequenceExtractor(pipeline.Pipeline):
   def transform(self, polyphonic_sequence):
     poly_step_seq = polyphony_lib.PolyphonicStepSequence(
         polyphonic_sequence=polyphonic_sequence)
-    return [PolySequenceAndStepSequence(polyphonic_sequence, poly_step_seqs)]
+    return [PolySequenceAndStepSequence(polyphonic_sequence, poly_step_seq)]
 
 
 class ConditionedEncoderPipeline(pipeline.Pipeline):
@@ -107,7 +107,6 @@ class ConditionedEncoderPipeline(pipeline.Pipeline):
     self._encoder_decoder = encoder_decoder
 
   def transform(self, seq_and_step_seq):
-    import pdb;pdb.set_trace()
     encoded = self._encoder_decoder.encode(
         seq_and_step_seq.poly_step_seq, seq_and_step_seq.poly_seq)
     return [encoded]
