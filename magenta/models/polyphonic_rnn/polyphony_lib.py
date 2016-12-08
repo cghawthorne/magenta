@@ -649,7 +649,8 @@ class PolyphonicStepSequence(events_lib.SimpleEventSequence):
       raise ValueError('Both sequences must start with a START event')
 
     for i in range(1, position):
-      if ((polyphonic_sequence[i].event_type == PolyphonicEvent.STEP_END and
+      if i < len(events) and (
+          (polyphonic_sequence[i].event_type == PolyphonicEvent.STEP_END and
            events[i].event_type == PolyphonicStepEvent.STEP_END) or
           (polyphonic_sequence[i].event_type == PolyphonicEvent.END and
            events[i].event_type == PolyphonicStepEvent.END)):

@@ -51,6 +51,7 @@ py_library(
     visibility = ["//magenta/interfaces:generator_interfaces"],
     deps = [
         ":polyphony_lib",
+        ":polyphony_encoder_decoder",
         ":polyphony_model",
         "//magenta",
         # tensorflow dep

@@ -296,7 +296,7 @@ class EventSequenceRnnModel(mm.BaseModel):
 
     if modify_events_callback:
       modify_events_callback(
-          self._config.encoder_decoder, event_sequences, inputs)
+          self._config.encoder_decoder, control_events, event_sequences, inputs)
 
     initial_state = np.tile(
         self._session.run(graph_initial_state), (beam_size, 1))
@@ -319,7 +319,7 @@ class EventSequenceRnnModel(mm.BaseModel):
 
       if modify_events_callback:
         modify_events_callback(
-            self._config.encoder_decoder, event_sequences, inputs)
+            self._config.encoder_decoder, control_events, event_sequences, inputs)
 
       event_sequences, final_state, loglik = self._generate_branches(
           event_sequences, loglik, branch_factor, steps_per_iteration, inputs,
@@ -381,9 +381,9 @@ class EventSequenceRnnModel(mm.BaseModel):
     if len(primer_events) >= num_steps:
       raise EventSequenceRnnModelException(
           'primer sequence must be shorter than `num_steps`')
-    if control_events is not None and len(control_events) < num_steps:
-      raise EventSequenceRnnModelException(
-          'control sequence must be at least `num_steps`')
+    #if control_events is not None and len(control_events) < num_steps:
+    #  raise EventSequenceRnnModelException(
+    #      'control sequence must be at least `num_steps`')
 
     events = primer_events
     if num_steps > len(primer_events):

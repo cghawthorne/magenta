@@ -22,6 +22,7 @@ import tensorflow as tf
 
 from magenta.models.polyphonic_rnn import polyphony_lib
 from magenta.models.polyphonic_rnn import polyphony_model
+from magenta.models.polyphonic_rnn import polyphony_encoder_decoder
 from magenta.models.polyphonic_rnn.polyphony_lib import PolyphonicEvent
 
 import magenta.music as mm
@@ -115,9 +116,6 @@ class PolyphonicRnnSequenceGenerator(mm.BaseSequenceGenerator):
 
     # Ensure that the track extends up to the step we want to start generating.
     poly_seq.set_length(generate_start_step - poly_seq.start_step)
-    # Trim any trailing end events to prepare the sequence for more events to be
-    # appended during generation.
-    poly_seq.trim_trailing_end_events()
 
     # Extract generation arguments from generator options.
     arg_types = {
@@ -130,12 +128,21 @@ class PolyphonicRnnSequenceGenerator(mm.BaseSequenceGenerator):
                 for name, value_fn in arg_types.items()
                 if name in generator_options.args)
 
+    if isinstance(
+        self._model._config.encoder_decoder,
+        polyphony_encoder_decoder.ConditionedPolyphonyEventSequenceEncoderDecoder
+    ):
+      poly_step_seq = polyphony_lib.PolyphonicStepSequence(
+          polyphonic_sequence=poly_seq)
+      print "\n".join([str(s) for s in poly_step_seq])
+      args['control_events'] = poly_step_seq
+
     # Inject the priming sequence as melody in the output of the generator.
     # Note that start_step is 0 because we overwrite poly_seq below. If we
     # included the priming sequence in poly_seq, it would be poly_seq.num_steps.
-    melody_to_inject = copy.deepcopy(poly_seq)
-    args['modify_events_callback'] = partial(
-        _inject_melody, melody_to_inject, 0)
+    #melody_to_inject = copy.deepcopy(poly_seq)
+    #args['modify_events_callback'] = partial(
+    #    _inject_melody, melody_to_inject, 0)
 
     # Overwrite poly_seq with a blank sequence to feed into the generator so it
     # is conditioned only on the melody events that are injected as the sequence
@@ -146,6 +153,9 @@ class PolyphonicRnnSequenceGenerator(mm.BaseSequenceGenerator):
         steps_per_quarter=(
             quantized_primer_sequence.quantization_info.steps_per_quarter),
         start_step=generate_start_step)
+
+    # Trim any trailing end events to prepare the sequence for more events to be
+    # appended during generation.
     poly_seq.trim_trailing_end_events()
 
     # If we wanted to include the priming sequence and didn't clear poly_seq
@@ -177,7 +187,7 @@ class PolyphonicRnnSequenceGenerator(mm.BaseSequenceGenerator):
     return generated_sequence
 
 
-def _inject_melody(melody, start_step, encoder_decoder, event_sequences,
+def _inject_melody(melody, start_step, encoder_decoder, control_events, event_sequences,
                    inputs):
   """A modify_events_callback method for generate_polyphonic_sequence.
 
@@ -225,7 +235,7 @@ def _inject_melody(melody, start_step, encoder_decoder, event_sequences,
         while melody_pos < len(melody) and (
             melody[melody_pos].event_type != PolyphonicEvent.STEP_END):
           event_sequence.append(melody[melody_pos])
-          input_.extend(encoder_decoder.get_inputs_batch([event_sequence])[0])
+          input_.extend(encoder_decoder.get_inputs_batch(control_events, [event_sequence])[0])
           melody_pos += 1
         break
 

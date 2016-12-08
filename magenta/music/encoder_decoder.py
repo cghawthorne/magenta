@@ -684,10 +684,10 @@ class ConditionalEventSequenceEncoderDecoder(object):
     """
     inputs_batch = []
     for target_events in target_event_sequences:
-      if len(control_events) <= len(target_events):
-        raise ValueError('control event sequence must be longer than target '
-                         'event sequence (%d control events but %d target '
-                         'events)' % (len(control_events), len(target_events)))
+      #if len(control_events) <= len(target_events):
+      #  raise ValueError('control event sequence must be longer than target '
+      #                   'event sequence (%d control events but %d target '
+      #                   'events)' % (len(control_events), len(target_events)))
       inputs = []
       if full_length:
         for i in range(len(target_events)):
