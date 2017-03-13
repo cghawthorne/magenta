@@ -62,8 +62,8 @@ class PolyphonyOneHotEncoding(encoder_decoder.OneHotEncoding):
       return len(EVENT_CLASSES_WITHOUT_PITCH_OR_DURATION) + (
           len(EVENT_CLASSES_WITH_DURATION) * DURATION_CLASSES) + (
           EVENT_CLASSES_WITH_PITCH_AND_DURATION.index(event.event_type) *
-          (DURATION_CLASSES + PITCH_CLASSES) +
-          (event.duration * PITCH_CLASSES) + event.pitch)
+          (DURATION_CLASSES + PITCH_CLASSES)) + (
+              (event.duration * PITCH_CLASSES) + event.pitch)
     else:
       raise ValueError('Unknown event type: %s' % event.event_type)
 
@@ -83,13 +83,17 @@ class PolyphonyOneHotEncoding(encoder_decoder.OneHotEncoding):
     pitch_duration_index = duration_index - (
         len(EVENT_CLASSES_WITH_DURATION) * DURATION_CLASSES)
     if pitch_duration_index < len(EVENT_CLASSES_WITH_PITCH_AND_DURATION) * (
-        DURATION_CLASSES + PITCH_CLASSES):
-      pitch_duration_event_type = len(EVENT_CLASSES_WITH_PITCH_AND_DURATION) + (
-          pitch_duration_index // (DURATION_CLASSES + PITCH_CLASSES))
-      duration = pitch_duration_index % PITCH_CLASSES
-      pitch = pitch_duration_index - (duration * PITCH_CLASSES)
+        DURATION_CLASSES * PITCH_CLASSES):
+      pitch_duration_event_type = pitch_duration_index // (
+          DURATION_CLASSES * PITCH_CLASSES)
+
+      pitch_duration_index -= pitch_duration_event_type * (
+          DURATION_CLASSES * PITCH_CLASSES)
+      duration = pitch_duration_index // PITCH_CLASSES
+      pitch = pitch_duration_index % PITCH_CLASSES
       return PolyphonicEvent(
-          event_type=EVENT_CLASSES_WITH_DURATION[pitch_duration_event_type],
+          event_type=EVENT_CLASSES_WITH_PITCH_AND_DURATION[
+              pitch_duration_event_type],
           pitch=pitch,
           duration=duration)
 

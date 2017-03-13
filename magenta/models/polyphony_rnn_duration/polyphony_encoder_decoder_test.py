@@ -48,7 +48,6 @@ class PolyphonyOneHotEncodingTest(tf.test.TestCase):
     event = self.enc.decode_event(index)
     self.assertEqual(end, event)
 
-    # TODO manually verify these
     index = self.enc.encode_event(step_end)
     self.assertEqual(12, index)
     event = self.enc.decode_event(index)
@@ -60,7 +59,7 @@ class PolyphonyOneHotEncodingTest(tf.test.TestCase):
     self.assertEqual(note_1, event)
 
     index = self.enc.encode_event(note_2)
-    self.assertEqual(3, index)
+    self.assertEqual(1356, index)
     event = self.enc.decode_event(index)
     self.assertEqual(note_2, event)
 
