@@ -43,8 +43,10 @@ class PolyphonyOneHotEncoding(encoder_decoder.OneHotEncoding):
 
   @property
   def num_classes(self):
-    return len(EVENT_CLASSES_WITHOUT_PITCH) + (
-        len(EVENT_CLASSES_WITH_PITCH) * PITCH_CLASSES)
+    return (len(EVENT_CLASSES_WITHOUT_PITCH_OR_DURATION) +
+            (len(EVENT_CLASSES_WITH_DURATION) * DURATION_CLASSES) +
+            (len(EVENT_CLASSES_WITH_PITCH_AND_DURATION) * PITCH_CLASSES *
+             DURATION_CLASSES))
 
   @property
   def default_event(self):

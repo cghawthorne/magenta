@@ -63,8 +63,8 @@ class PolyphonicSequenceExtractor(pipeline.Pipeline):
   def transform(self, note_sequence):
     poly_seqs, stats = polyphony_lib.extract_polyphonic_sequences(
         note_sequence,
-        min_secs=self._min_secs,
-        max_secs=self._max_secs)
+        min_secs_discard=self._min_secs,
+        max_secs_discard=self._max_secs)
     self._set_stats(stats)
     return poly_seqs
 
@@ -94,8 +94,8 @@ def get_pipeline(config, min_secs, max_secs, eval_ratio):
   dag = {partitioner: dag_pipeline.DagInput(music_pb2.NoteSequence)}
 
   for mode in ['eval', 'training']:
-    time_change_splitter = pipelines_common.TimeChangeSplitter(
-        name='TimeChangeSplitter_' + mode)
+    #time_change_splitter = pipelines_common.TimeChangeSplitter(
+    #    name='TimeChangeSplitter_' + mode)
     transposition_pipeline = sequences_lib.TranspositionPipeline(
         transposition_range, name='TranspositionPipeline_' + mode)
     poly_extractor = PolyphonicSequenceExtractor(
@@ -104,8 +104,8 @@ def get_pipeline(config, min_secs, max_secs, eval_ratio):
         polyphony_lib.PolyphonicSequence, config.encoder_decoder,
         name='EncoderPipeline_' + mode)
 
-    dag[time_change_splitter] = partitioner[mode + '_poly_tracks']
-    dag[transposition_pipeline] = time_change_splitter
+    #dag[time_change_splitter] = partitioner[mode + '_poly_tracks']
+    dag[transposition_pipeline] = partitioner[mode + '_poly_tracks'] #time_change_splitter
     dag[poly_extractor] = transposition_pipeline
     dag[encoder_pipeline] = poly_extractor
     dag[dag_pipeline.DagOutput(mode + '_poly_tracks')] = encoder_pipeline
@@ -127,7 +127,8 @@ def main(unused_argv):
   pipeline.run_pipeline_serial(
       pipeline_instance,
       pipeline.tf_record_iterator(input_dir, pipeline_instance.input_type),
-      output_dir)
+      output_dir,
+      status_every_n=10)
 
 
 def console_entry_point():

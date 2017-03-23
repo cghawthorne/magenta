@@ -18,7 +18,7 @@ import os
 # internal imports
 import tensorflow as tf
 
-from magenta.models.polyphony_rnn import polyphony_model
+from magenta.models.polyphony_rnn_duration import polyphony_model
 from magenta.models.shared import events_rnn_graph
 from magenta.models.shared import events_rnn_train
 

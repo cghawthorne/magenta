@@ -20,9 +20,9 @@ from functools import partial
 
 import tensorflow as tf
 
-from magenta.models.polyphony_rnn import polyphony_lib
-from magenta.models.polyphony_rnn import polyphony_model
-from magenta.models.polyphony_rnn.polyphony_lib import PolyphonicEvent
+from magenta.models.polyphony_rnn_duration import polyphony_lib
+from magenta.models.polyphony_rnn_duration import polyphony_model
+from magenta.models.polyphony_rnn_duration.polyphony_lib import PolyphonicEvent
 
 import magenta.music as mm
 
@@ -91,7 +91,7 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
         primer_sequence, self.steps_per_quarter)
 
     extracted_seqs, _ = polyphony_lib.extract_polyphonic_sequences(
-        quantized_primer_sequence, start_step=input_start_step)
+        quantized_primer_sequence, start_sec=input_start_step)
     assert len(extracted_seqs) <= 1
 
     generate_start_step = mm.quantize_to_step(

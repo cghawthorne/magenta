@@ -25,8 +25,8 @@ import time
 import tensorflow as tf
 import magenta
 
-from magenta.models.polyphony_rnn import polyphony_model
-from magenta.models.polyphony_rnn import polyphony_sequence_generator
+from magenta.models.polyphony_rnn_duration import polyphony_model
+from magenta.models.polyphony_rnn_duration import polyphony_sequence_generator
 
 from magenta.music import constants
 from magenta.protobuf import generator_pb2
