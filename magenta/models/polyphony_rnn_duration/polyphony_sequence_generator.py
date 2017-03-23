@@ -30,8 +30,7 @@ import magenta.music as mm
 class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
   """Polyphony RNN generation code as a SequenceGenerator interface."""
 
-  def __init__(self, model, details, steps_per_quarter=4, checkpoint=None,
-               bundle=None):
+  def __init__(self, model, details, checkpoint=None, bundle=None):
     """Creates a PolyphonyRnnSequenceGenerator.
 
     Args:
@@ -44,8 +43,11 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
       bundle: A GeneratorBundle object that includes both the model checkpoint
           and metagraph. Mutually exclusive with `checkpoint`.
     """
+    # TODO(fjord) remove this as soon as steps_per_second is deprecated in
+    # BaseSequenceGenerator.
+    fake_steps_per_quarter = 0
     super(PolyphonyRnnSequenceGenerator, self).__init__(
-        model, details, steps_per_quarter, checkpoint, bundle)
+        model, details, fake_steps_per_quarter, checkpoint, bundle)
 
   def _generate(self, input_sequence, generator_options):
     if len(generator_options.input_sections) > 1:
@@ -57,25 +59,15 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
           'This model supports only 1 generate_sections message, but got %s' %
           len(generator_options.generate_sections))
 
-    # This sequence will be quantized later, so it is guaranteed to have only 1
-    # tempo.
-    qpm = mm.DEFAULT_QUARTERS_PER_MINUTE
-    if input_sequence.tempos:
-      qpm = input_sequence.tempos[0].qpm
-
-    steps_per_second = mm.steps_per_quarter_to_steps_per_second(
-        self.steps_per_quarter, qpm)
-
     generate_section = generator_options.generate_sections[0]
     if generator_options.input_sections:
       input_section = generator_options.input_sections[0]
       primer_sequence = mm.trim_note_sequence(
           input_sequence, input_section.start_time, input_section.end_time)
-      input_start_step = mm.quantize_to_step(
-          input_section.start_time, steps_per_second)
+      input_start_sec = input_section.start_time
     else:
       primer_sequence = input_sequence
-      input_start_step = 0
+      input_start_sec = 0
 
     last_end_time = (max(n.end_time for n in primer_sequence.notes)
                      if primer_sequence.notes else 0)
@@ -86,21 +78,12 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
           'Requested start time: %s, Final note end time: %s' %
           (generate_section.start_time, last_end_time))
 
-    # Quantize the priming sequence.
-    quantized_primer_sequence = mm.quantize_note_sequence(
-        primer_sequence, self.steps_per_quarter)
-
     extracted_seqs, _ = polyphony_lib.extract_polyphonic_sequences(
-        quantized_primer_sequence, start_sec=input_start_step)
+        primer_sequence, start_sec=input_start_sec)
     assert len(extracted_seqs) <= 1
 
-    generate_start_step = mm.quantize_to_step(
-        generate_section.start_time, steps_per_second)
-    # Note that when quantizing end_step, we set quantize_cutoff to 1.0 so it
-    # always rounds down. This avoids generating a sequence that ends at 5.0
-    # seconds when the requested end time is 4.99.
-    generate_end_step = mm.quantize_to_step(
-        generate_section.end_time, steps_per_second, quantize_cutoff=1.0)
+    generate_start_sec = generate_section.start_time
+    generate_end_sec = generate_section.end_time
 
     if extracted_seqs and extracted_seqs[0]:
       poly_seq = extracted_seqs[0]
@@ -108,13 +91,11 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
       # If no track could be extracted, create an empty track that starts at the
       # requested generate_start_step. This will result in a sequence that
       # contains only the START token.
-      poly_seq = polyphony_lib.PolyphonicSequence(
-          steps_per_quarter=(
-              quantized_primer_sequence.quantization_info.steps_per_quarter),
-          start_step=generate_start_step)
+      poly_seq = polyphony_lib.PolyphonicSequence(start_sec=generate_start_sec)
 
     # Ensure that the track extends up to the step we want to start generating.
-    poly_seq.set_length(generate_start_step - poly_seq.start_step)
+    # TODO fix
+    #poly_seq.set_length_secs(generate_start_sec - poly_seq.start_sec)
     # Trim any trailing end events to prepare the sequence for more events to be
     # appended during generation.
     poly_seq.trim_trailing_end_events()
@@ -135,51 +116,52 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
     # This option starts with no_ so that if it is unspecified (as will be the
     # case when used with the midi interface), the default will be to inject the
     # primer.
-    if not (generator_options.args[
-        'no_inject_primer_during_generation'].bool_value):
-      melody_to_inject = copy.deepcopy(poly_seq)
-      if generator_options.args['condition_on_primer'].bool_value:
-        inject_start_step = poly_seq.num_steps
-      else:
-        # 0 steps because we'll overwrite poly_seq with a blank sequence below.
-        inject_start_step = 0
+    # TODO fix
+    #if not (generator_options.args[
+    #    'no_inject_primer_during_generation'].bool_value):
+    #  melody_to_inject = copy.deepcopy(poly_seq)
+    #  if generator_options.args['condition_on_primer'].bool_value:
+    #    inject_start_step = poly_seq.num_steps
+    #  else:
+    #    # 0 steps because we'll overwrite poly_seq with a blank sequence below.
+    #    inject_start_step = 0
 
-      args['modify_events_callback'] = partial(
-          _inject_melody, melody_to_inject, inject_start_step)
+    #  args['modify_events_callback'] = partial(
+    #      _inject_melody, melody_to_inject, inject_start_step)
 
     # If we don't want to condition on the priming sequence, then overwrite
     # poly_seq with a blank sequence to feed into the generator.
     if not generator_options.args['condition_on_primer'].bool_value:
       poly_seq = polyphony_lib.PolyphonicSequence(
-          steps_per_quarter=(
-              quantized_primer_sequence.quantization_info.steps_per_quarter),
-          start_step=generate_start_step)
+          start_sec=generate_start_sec)
       poly_seq.trim_trailing_end_events()
 
-    total_steps = poly_seq.num_steps + (
-        generate_end_step - generate_start_step)
+    total_secs = poly_seq.num_secs + (
+        generate_end_sec - generate_start_sec)
 
-    while poly_seq.num_steps < total_steps:
-      # Assume it takes ~5 rnn steps to generate one quantized step.
+    while poly_seq.num_secs < total_secs:
+      # Assume it takes N rnn steps to generate one second.
       # Can't know for sure until generation is finished because the number of
-      # notes per quantized step is variable.
-      steps_to_gen = total_steps - poly_seq.num_steps
-      rnn_steps_to_gen = 5 * steps_to_gen
+      # events per second is variable.
+      secs_to_gen = total_secs - poly_seq.num_secs
+      rnn_steps_to_gen = max(5, int(10 * secs_to_gen))
       tf.logging.info(
-          'Need to generate %d more steps for this sequence, will try asking '
-          'for %d RNN steps' % (steps_to_gen, rnn_steps_to_gen))
+          'Need to generate %f more secs for this sequence, will try asking '
+          'for %d RNN steps' % (secs_to_gen, rnn_steps_to_gen))
       poly_seq = self._model.generate_polyphonic_sequence(
           len(poly_seq) + rnn_steps_to_gen, poly_seq, **args)
-    poly_seq.set_length(total_steps)
+    # TODO fix
+    #poly_seq.set_length_secs(total_secs)
 
     if generator_options.args['condition_on_primer'].bool_value:
-      generated_sequence = poly_seq.to_sequence(qpm=qpm)
+      generated_sequence = poly_seq.to_sequence()
     else:
       # Specify a base_note_sequence because the priming sequence was not
       # included in poly_seq.
       generated_sequence = poly_seq.to_sequence(
-          qpm=qpm, base_note_sequence=copy.deepcopy(primer_sequence))
-    assert (generated_sequence.total_time - generate_section.end_time) <= 1e-5
+          base_note_sequence=copy.deepcopy(primer_sequence))
+    # TODO re-enable once set_length_secs works
+    #assert (generated_sequence.total_time - generate_section.end_time) <= 1e-5
     return generated_sequence
 
 

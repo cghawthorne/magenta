@@ -84,7 +84,7 @@ class PolyphonicSequence(events_lib.EventSequence):
 
     Args:
       note_sequence: a NoteSequence proto.
-      start_secs: The offset of this sequence relative to the
+      start_sec: The offset of this sequence relative to the
           beginning of the source sequence. If a note sequence is used as
           input, only notes starting after this time will be considered.
     """
@@ -92,19 +92,50 @@ class PolyphonicSequence(events_lib.EventSequence):
       self._events = self._from_note_sequence(note_sequence, start_sec)
     else:
       self._events = [
-          PolyphonicEvent(event_type=PolyphonicEvent.START, data=None)]
+          PolyphonicEvent(event_type=PolyphonicEvent.START)]
 
     self._start_sec = start_sec
 
+  ### Methods related to steps that are irrelevant.
+  # TODO(fjord): modify interface of EventSequence so that models that don't use
+  # steps can implement it more easily.
+
   @property
   def start_step(self):
-    # TODO need this?
-    return None
+    raise NotImplementedError()
+
+  @property
+  def end_step(self):
+    raise NotImplementedError()
 
   @property
   def steps_per_quarter(self):
-    # TODO need this?
-    return None
+    raise NotImplementedError()
+
+  def set_length(self, steps, from_left=False):
+    raise NotImplementedError()
+
+  ##################
+
+  @property
+  def start_sec(self):
+    return self._start_sec
+
+  @property
+  def num_secs(self):
+    """Returns how many steps long this sequence is.
+
+    Does not count incomplete steps (i.e., steps that do not have a terminating
+    STEP_END event).
+
+    Returns:
+      Length of the sequence in quantized steps.
+    """
+    secs = 0
+    for event in self:
+      if event.event_type == PolyphonicEvent.STEP_END:
+        secs += DURATIONS[event.duration]
+    return secs
 
   def trim_trailing_end_events(self):
     """Removes the trailing END event if present.
@@ -134,7 +165,7 @@ class PolyphonicSequence(events_lib.EventSequence):
             PolyphonicEvent(event_type=PolyphonicEvent.START, pitch=None)]
         break
 
-  def set_length(self, steps, from_left=False):
+  def set_length_secs(self, steps, from_left=False):
     """Sets the length of the sequence to the specified number of steps.
 
     If the event sequence is not long enough, pads with silence to make the
@@ -148,6 +179,9 @@ class PolyphonicSequence(events_lib.EventSequence):
       steps: How many quantized steps long the event sequence should be.
       from_left: Whether to add/remove from the left instead of right.
     """
+    # TODO implement seconds-only version of this
+    raise NotImplementedError()
+
     if from_left:
       raise NotImplementedError('from_left is not supported')
 
@@ -202,32 +236,12 @@ class PolyphonicSequence(events_lib.EventSequence):
       elif event.event_type == PolyphonicEvent.END:
         strs.append('END')
       elif event.event_type == PolyphonicEvent.STEP_END:
-        strs.append('(|||, %d)' % event.data)
+        strs.append('(|||, %f)' % DURATIONS[event.duration])
       elif event.event_type == PolyphonicEvent.NOTE:
-        strs.append('(%s, NOTE)' % event.data)
+        strs.append('(NOTE, %d, %f)' % (event.pitch, DURATIONS[event.duration]))
       else:
         raise ValueError('Unknown event type: %s' % event.event_type)
     return '\n'.join(strs)
-
-  @property
-  def end_step(self):
-    return self.start_step + self.num_steps
-
-  @property
-  def num_steps(self):
-    """Returns how many steps long this sequence is.
-
-    Does not count incomplete steps (i.e., steps that do not have a terminating
-    STEP_END event).
-
-    Returns:
-      Length of the sequence in quantized steps.
-    """
-    steps = 0
-    for event in self:
-      if event.event_type == PolyphonicEvent.STEP_END:
-        steps += 1
-    return steps
 
   @staticmethod
   def _from_note_sequence(note_sequence, start_secs=0):
@@ -300,10 +314,6 @@ class PolyphonicSequence(events_lib.EventSequence):
     Returns:
       A NoteSequence proto.
     """
-    seconds_per_step = 60.0 / qpm / self._steps_per_quarter
-
-    sequence_start_time = self.start_step * seconds_per_step
-
     if base_note_sequence:
       sequence = copy.deepcopy(base_note_sequence)
       if sequence.tempos[0].qpm != qpm:
@@ -315,10 +325,7 @@ class PolyphonicSequence(events_lib.EventSequence):
       sequence.tempos.add().qpm = qpm
       sequence.ticks_per_quarter = STANDARD_PPQ
 
-    step = 0
-    # Use lists rather than sets because one pitch may be active multiple times.
-    pitch_start_steps = []
-    pitches_to_end = []
+    time = self.start_sec
     for i, event in enumerate(self):
       if event.event_type == PolyphonicEvent.START:
         if i != 0:
@@ -328,54 +335,20 @@ class PolyphonicSequence(events_lib.EventSequence):
       elif event.event_type == PolyphonicEvent.END and i < len(self) - 1:
         tf.logging.debug(
             'Ignoring END maker before end of sequence at position %d' % i)
-      elif event.event_type == PolyphonicEvent.NEW_NOTE:
-        pitch_start_steps.append((event.pitch, step))
-      elif event.event_type == PolyphonicEvent.CONTINUED_NOTE:
-        try:
-          pitches_to_end.remove(event.pitch)
-        except ValueError:
-          tf.logging.debug(
-              'Attempted to continue pitch %s at step %s, but pitch was not '
-              'active. Ignoring.' % (event.pitch, step))
-      elif (event.event_type == PolyphonicEvent.STEP_END or
-            event.event_type == PolyphonicEvent.END):
-        # Find active pitches that should end. Create notes for them, based on
-        # when they started.
-        # Make a copy of pitch_start_steps so we can remove things from it while
-        # iterating.
-        for pitch_start_step in list(pitch_start_steps):
-          if pitch_start_step[0] in pitches_to_end:
-            pitches_to_end.remove(pitch_start_step[0])
-            pitch_start_steps.remove(pitch_start_step)
-
-            note = sequence.notes.add()
-            note.start_time = (pitch_start_step[1] * seconds_per_step +
-                               sequence_start_time)
-            note.end_time = step * seconds_per_step + sequence_start_time
-            note.pitch = pitch_start_step[0]
-            note.velocity = velocity
-            note.instrument = instrument
-            note.program = program
-
-        assert not pitches_to_end
-
-        # Increment the step counter.
-        step += 1
-
-        # All active pitches are eligible for ending unless continued.
-        pitches_to_end = [ps[0] for ps in pitch_start_steps]
+      elif event.event_type == PolyphonicEvent.NOTE:
+        note = sequence.notes.add(
+            start_time=time,
+            end_time=time + DURATIONS[event.duration],
+            pitch=event.pitch,
+            velocity=velocity,
+            instrument=instrument,
+            program=program)
+      elif event.event_type == PolyphonicEvent.STEP_END:
+        time += DURATIONS[event.duration]
       else:
         raise ValueError('Unknown event type: %s' % event.event_type)
 
-    if pitch_start_steps:
-      raise ValueError(
-          'Sequence ended, but not all pitches were ended. This likely means '
-          'the sequence was missing a STEP_END event before the end of the '
-          'sequence. To ensure a well-formed sequence, call set_length first.')
-
-    sequence.total_time = seconds_per_step * (step - 1) + sequence_start_time
-    if sequence.notes:
-      assert sequence.total_time >= sequence.notes[-1].end_time
+    sequence.total_time = max([n.end_time for n in sequence.notes] or [0])
 
     return sequence
 

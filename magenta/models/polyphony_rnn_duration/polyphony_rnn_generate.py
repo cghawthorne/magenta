@@ -59,9 +59,9 @@ tf.app.flags.DEFINE_integer(
     'The number of tracks to generate. One MIDI file will be created for '
     'each.')
 tf.app.flags.DEFINE_integer(
-    'num_steps', 128,
-    'The total number of steps the generated track should be, priming '
-    'track length + generated steps. Each step is a 16th of a bar.')
+    'num_secs', 30,
+    'The total number of seconds the generated track should be, priming '
+    'track length + generated seconds.')
 tf.app.flags.DEFINE_string(
     'primer_pitches', '',
     'A string representation of a Python list of pitches that will be used as '
@@ -184,25 +184,21 @@ def run_with_flags(generator):
     primer_sequence.tempos.add().qpm = qpm
     primer_sequence.ticks_per_quarter = constants.STANDARD_PPQ
 
-  # Derive the total number of seconds to generate.
-  seconds_per_step = 60.0 / qpm / generator.steps_per_quarter
-  generate_end_time = FLAGS.num_steps * seconds_per_step
-
   # Specify start/stop time for generation based on starting generation at the
-  # end of the priming sequence and continuing until the sequence is num_steps
+  # end of the priming sequence and continuing until the sequence is num_secs
   # long.
   generator_options = generator_pb2.GeneratorOptions()
   # Set the start time to begin when the last note ends.
   generate_section = generator_options.generate_sections.add(
       start_time=primer_sequence.total_time,
-      end_time=generate_end_time)
+      end_time=FLAGS.num_secs)
 
   if generate_section.start_time >= generate_section.end_time:
     tf.logging.fatal(
-        'Priming sequence is longer than the total number of steps '
+        'Priming sequence is longer than the total number of seconds '
         'requested: Priming sequence length: %s, Total length '
         'requested: %s',
-        generate_section.start_time, generate_end_time)
+        generate_section.start_time, FLAGS.num_secs)
     return
 
   generator_options.args['temperature'].float_value = FLAGS.temperature
@@ -243,7 +239,6 @@ def main(unused_argv):
   generator = polyphony_sequence_generator.PolyphonyRnnSequenceGenerator(
       model=polyphony_model.PolyphonyRnnModel(config),
       details=config.details,
-      steps_per_quarter=config.steps_per_quarter,
       checkpoint=get_checkpoint(),
       bundle=get_bundle())
 
