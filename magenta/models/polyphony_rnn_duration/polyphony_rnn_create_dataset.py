@@ -128,7 +128,7 @@ def main(unused_argv):
       pipeline_instance,
       pipeline.tf_record_iterator(input_dir, pipeline_instance.input_type),
       output_dir,
-      status_every_n=10)
+      status_every_n_outputs=20)
 
 
 def console_entry_point():

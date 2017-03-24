@@ -311,7 +311,7 @@ def run_pipeline_serial(pipeline,
                         input_iterator,
                         output_dir,
                         output_file_base=None,
-                        status_every_n=500):
+                        status_every_n_outputs=500):
   """Runs the a pipeline on a data source and writes to a directory.
 
   Run the the pipeline on each input from the iterator one at a time.
@@ -367,9 +367,9 @@ def run_pipeline_serial(pipeline,
 
   total_inputs = 0
   total_outputs = 0
+  last_output_log = 0
   stats = []
   for input_ in input_iterator:
-    tf.logging.info('Processing new input')
     total_inputs += 1
     for name, outputs in _guarantee_dict(pipeline.transform(input_),
                                          output_names[0]).items():
@@ -377,10 +377,11 @@ def run_pipeline_serial(pipeline,
         writers[name].write(output.SerializeToString())
       total_outputs += len(outputs)
     stats = statistics.merge_statistics(stats + pipeline.get_stats())
-    if total_inputs % status_every_n == 0:
+    if total_outputs >= last_output_log + status_every_n_outputs:
       tf.logging.info('Processed %d inputs so far. Produced %d outputs.',
                       total_inputs, total_outputs)
       statistics.log_statistics_list(stats, tf.logging.info)
+      last_output_log = total_outputs - (total_outputs % status_every_n_outputs)
   tf.logging.info('\n\nCompleted.\n')
   tf.logging.info('Processed %d inputs total. Produced %d outputs.',
                   total_inputs, total_outputs)

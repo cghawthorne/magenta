@@ -332,9 +332,10 @@ class PolyphonicSequence(events_lib.EventSequence):
           tf.logging.debug(
               'Ignoring START marker not at beginning of sequence at position '
               '%d' % i)
-      elif event.event_type == PolyphonicEvent.END and i < len(self) - 1:
-        tf.logging.debug(
-            'Ignoring END maker before end of sequence at position %d' % i)
+      elif event.event_type == PolyphonicEvent.END:
+        if i < len(self) - 1:
+          tf.logging.debug(
+              'Ignoring END maker before end of sequence at position %d' % i)
       elif event.event_type == PolyphonicEvent.NOTE:
         note = sequence.notes.add(
             start_time=time,

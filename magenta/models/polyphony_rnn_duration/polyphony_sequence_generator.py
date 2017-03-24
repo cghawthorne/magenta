@@ -165,57 +165,58 @@ class PolyphonyRnnSequenceGenerator(mm.BaseSequenceGenerator):
     return generated_sequence
 
 
-def _inject_melody(melody, start_step, encoder_decoder, event_sequences,
-                   inputs):
-  """A modify_events_callback method for generate_polyphonic_sequence.
-
-  Should be called with functools.partial first, to fill in the melody and
-  start_step arguments.
-
-  Will extend the event sequence using events from the melody argument whenever
-  the event sequence gets to a new step.
-
-  Args:
-    melody: The PolyphonicSequence to use to extend the event sequence.
-    start_step: The length of the priming sequence in RNN steps.
-    encoder_decoder: Supplied by the callback. The current
-        EventSequenceEncoderDecoder.
-    event_sequences: Supplied by the callback. The current EventSequence.
-    inputs: Supplied by the callback. The current list of encoded events.
-  """
-  assert len(event_sequences) == len(inputs)
-
-  for i in range(len(inputs)):
-    event_sequence = event_sequences[i]
-    input_ = inputs[i]
-
-    # Only modify the event sequence if we're at the start of a new step or this
-    # is the first step.
-    if not (event_sequence[-1].event_type == PolyphonicEvent.STEP_END or
-            not event_sequence or
-            (event_sequence[-1].event_type == PolyphonicEvent.START and
-             len(event_sequence) == 1)):
-      continue
-
-    # Determine the current step event.
-    event_step_count = 0
-    for event in event_sequence:
-      if event.event_type == PolyphonicEvent.STEP_END:
-        event_step_count += 1
-
-    # Find the corresponding event in the input melody.
-    melody_step_count = start_step
-    for i, event in enumerate(melody):
-      if event.event_type == PolyphonicEvent.STEP_END:
-        melody_step_count += 1
-      if melody_step_count == event_step_count:
-        melody_pos = i + 1
-        while melody_pos < len(melody) and (
-            melody[melody_pos].event_type != PolyphonicEvent.STEP_END):
-          event_sequence.append(melody[melody_pos])
-          input_.extend(encoder_decoder.get_inputs_batch([event_sequence])[0])
-          melody_pos += 1
-        break
+# TODO fix
+#def _inject_melody(melody, start_step, encoder_decoder, event_sequences,
+#                   inputs):
+#  """A modify_events_callback method for generate_polyphonic_sequence.
+#
+#  Should be called with functools.partial first, to fill in the melody and
+#  start_step arguments.
+#
+#  Will extend the event sequence using events from the melody argument whenever
+#  the event sequence gets to a new step.
+#
+#  Args:
+#    melody: The PolyphonicSequence to use to extend the event sequence.
+#    start_step: The length of the priming sequence in RNN steps.
+#    encoder_decoder: Supplied by the callback. The current
+#        EventSequenceEncoderDecoder.
+#    event_sequences: Supplied by the callback. The current EventSequence.
+#    inputs: Supplied by the callback. The current list of encoded events.
+#  """
+#  assert len(event_sequences) == len(inputs)
+#
+#  for i in range(len(inputs)):
+#    event_sequence = event_sequences[i]
+#    input_ = inputs[i]
+#
+#    # Only modify the event sequence if we're at the start of a new step or this
+#    # is the first step.
+#    if not (event_sequence[-1].event_type == PolyphonicEvent.STEP_END or
+#            not event_sequence or
+#            (event_sequence[-1].event_type == PolyphonicEvent.START and
+#             len(event_sequence) == 1)):
+#      continue
+#
+#    # Determine the current step event.
+#    event_step_count = 0
+#    for event in event_sequence:
+#      if event.event_type == PolyphonicEvent.STEP_END:
+#        event_step_count += 1
+#
+#    # Find the corresponding event in the input melody.
+#    melody_step_count = start_step
+#    for i, event in enumerate(melody):
+#      if event.event_type == PolyphonicEvent.STEP_END:
+#        melody_step_count += 1
+#      if melody_step_count == event_step_count:
+#        melody_pos = i + 1
+#        while melody_pos < len(melody) and (
+#            melody[melody_pos].event_type != PolyphonicEvent.STEP_END):
+#          event_sequence.append(melody[melody_pos])
+#          input_.extend(encoder_decoder.get_inputs_batch([event_sequence])[0])
+#          melody_pos += 1
+#        break
 
 
 def get_generator_map():
