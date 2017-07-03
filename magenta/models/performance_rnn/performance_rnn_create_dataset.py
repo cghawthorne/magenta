@@ -102,8 +102,10 @@ def get_pipeline(config, min_events, max_events, eval_ratio):
         name='SustainPipeline_' + mode)
     stretch_pipeline = note_sequence_pipelines.StretchPipeline(
         stretch_factors, name='StretchPipeline_' + mode)
-    splitter = note_sequence_pipelines.Splitter(
-        hop_size_seconds=30.0, name='Splitter_' + mode)
+    #splitter = note_sequence_pipelines.Splitter(
+        #hop_size_seconds=30.0, name='Splitter_' + mode)
+    trimmer = note_sequence_pipelines.Trimmer(
+        max_length_seconds=60.0, name='Trimmer_' + mode)
     quantizer = note_sequence_pipelines.Quantizer(
         steps_per_second=config.steps_per_second, name='Quantizer_' + mode)
     transposition_pipeline = note_sequence_pipelines.TranspositionPipeline(
@@ -117,11 +119,12 @@ def get_pipeline(config, min_events, max_events, eval_ratio):
         name='EncoderPipeline_' + mode)
 
     dag[sustain_pipeline] = partitioner[mode + '_performances']
-    dag[stretch_pipeline] = sustain_pipeline
-    dag[splitter] = stretch_pipeline
-    dag[quantizer] = splitter
-    dag[transposition_pipeline] = quantizer
-    dag[perf_extractor] = transposition_pipeline
+    #dag[stretch_pipeline] = sustain_pipeline
+    #dag[splitter] = stretch_pipeline
+    dag[trimmer] = sustain_pipeline
+    dag[quantizer] = trimmer
+    #dag[transposition_pipeline] = quantizer
+    dag[perf_extractor] = quantizer
     dag[encoder_pipeline] = perf_extractor
     dag[dag_pipeline.DagOutput(mode + '_performances')] = encoder_pipeline
 
@@ -133,7 +136,7 @@ def main(unused_argv):
 
   pipeline_instance = get_pipeline(
       min_events=32,
-      max_events=512,
+      max_events=4096,
       eval_ratio=FLAGS.eval_ratio,
       config=performance_model.default_configs[FLAGS.config])
 

@@ -627,7 +627,7 @@ class DAGPipeline(pipeline.Pipeline):
       for l in outputs:
         if not isinstance(l, list):
           raise InvalidTransformOutputException(
-              'Expected list output for %s with outpu type %s but instead got '
+              'Expected list output for %s with output type %s but instead got '
               'type %s' % (unit, unit.output_type, type(l)))
         if not _all_are_type(l, unit.output_type):
           raise InvalidTransformOutputException(

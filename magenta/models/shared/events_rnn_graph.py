@@ -17,12 +17,15 @@
 import tensorflow as tf
 import magenta
 
+import magenta.dnc.dnc
+
 from tensorflow.python.util import nest as tf_nest
 
 
 def make_rnn_cell(rnn_layer_sizes,
                   dropout_keep_prob=1.0,
                   attn_length=0,
+                  input_size=0,
                   base_cell=tf.contrib.rnn.BasicLSTMCell):
   """Makes a RNN cell from the given hyperparameters.
 
@@ -37,20 +40,37 @@ def make_rnn_cell(rnn_layer_sizes,
   Returns:
       A tf.contrib.rnn.MultiRNNCell based on the given hyperparameters.
   """
-  cells = []
-  for num_units in rnn_layer_sizes:
-    cell = base_cell(num_units)
-    if attn_length and not cells:
-      # Add attention wrapper to first layer.
-      cell = tf.contrib.rnn.AttentionCellWrapper(
-          cell, attn_length, state_is_tuple=True)
-    cell = tf.contrib.rnn.DropoutWrapper(
-        cell, output_keep_prob=dropout_keep_prob)
-    cells.append(cell)
 
-  cell = tf.contrib.rnn.MultiRNNCell(cells)
+  access_config = {
+      "memory_size": 64,
+      "word_size": 64,
+      "num_reads": 16,
+      "num_writes": 1,
+  }
+  controller_config = {
+      "hidden_size": 64,
+  }
+  clip_value = 20
+  output_size = input_size
 
-  return cell
+  dnc_core = magenta.dnc.dnc.DNC(access_config, controller_config, output_size, clip_value)
+
+  return dnc_core
+
+#  cells = []
+#  for num_units in rnn_layer_sizes:
+#    cell = base_cell(num_units)
+#    if attn_length and not cells:
+#      # Add attention wrapper to first layer.
+#      cell = tf.contrib.rnn.AttentionCellWrapper(
+#          cell, attn_length, state_is_tuple=True)
+#    cell = tf.contrib.rnn.DropoutWrapper(
+#        cell, output_keep_prob=dropout_keep_prob)
+#    cells.append(cell)
+#
+#  cell = tf.contrib.rnn.MultiRNNCell(cells)
+#
+#  return cell
 
 
 def build_graph(mode, config, sequence_example_file_paths=None):
@@ -101,9 +121,10 @@ def build_graph(mode, config, sequence_example_file_paths=None):
         dropout_keep_prob=(
             1.0 if mode == 'generate' else hparams.dropout_keep_prob),
         attn_length=(
-            hparams.attn_length if hasattr(hparams, 'attn_length') else 0))
+            hparams.attn_length if hasattr(hparams, 'attn_length') else 0),
+        input_size=input_size)
 
-    initial_state = cell.zero_state(hparams.batch_size, tf.float32)
+    initial_state = cell.initial_state(hparams.batch_size, tf.float32)
 
     outputs, final_state = tf.nn.dynamic_rnn(
         cell, inputs, sequence_length=lengths, initial_state=initial_state,

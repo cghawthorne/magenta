@@ -43,6 +43,24 @@ class NoteSequencePipeline(pipeline.Pipeline):
         name=name)
 
 
+class Trimmer(NoteSequencePipeline):
+  """A Pipeline that truncates NoteSequences to be a specific length."""
+
+  def __init__(self, max_length_seconds, name=None):
+    """Creates a Splitter pipeline.
+
+    Args:
+      max_length_seconds: Maximum length for the note sequence in seconds.
+      name: Pipeline name.
+    """
+    super(Trimmer, self).__init__(name=name)
+    self._max_length_seconds = max_length_seconds
+
+  def transform(self, note_sequence):
+    return [sequences_lib.trim_note_sequence(
+        note_sequence, start_time=0, end_time=self._max_length_seconds)]
+
+
 class Splitter(NoteSequencePipeline):
   """A Pipeline that splits NoteSequences at regular intervals."""
 
