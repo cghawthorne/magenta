@@ -84,7 +84,7 @@ default_configs = {
         magenta.music.OneHotEventSequenceEncoderDecoder(
             performance_encoder_decoder.PerformanceOneHotEncoding()),
         tf.contrib.training.HParams(
-            batch_size=64,
+            batch_size=16,
             rnn_layer_sizes=[512, 512, 512],
             dropout_keep_prob=1.0,
             clip_norm=3,
@@ -98,7 +98,7 @@ default_configs = {
             performance_encoder_decoder.PerformanceOneHotEncoding(
                 num_velocity_bins=32)),
         tf.contrib.training.HParams(
-            batch_size=64,
+            batch_size=32,
             rnn_layer_sizes=[512, 512, 512],
             dropout_keep_prob=1.0,
             clip_norm=3,

@@ -22,6 +22,8 @@ import tensorflow as tf
 
 from magenta.models.performance_rnn import performance_lib
 from magenta.models.performance_rnn import performance_model
+from magenta.models.performance_rnn import performance_encoder_decoder
+
 
 import magenta.music as mm
 
@@ -138,6 +140,8 @@ class PerformanceRnnSequenceGenerator(mm.BaseSequenceGenerator):
 
     total_steps = performance.num_steps + (
         generate_end_step - generate_start_step)
+
+    performance.append(performance_encoder_decoder.PerformanceOneHotEncoding().decode_event(307))
 
     if not performance:
       # Primer is empty; let's just start with silence.
