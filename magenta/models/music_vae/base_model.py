@@ -224,11 +224,18 @@ class MusicVAE(object):
         x_input, x_target, x_length, z)[0:2]
 
     free_nats = hparams.free_bits * tf.log(2.0)
-    kl_cost = tf.maximum(kl_div - free_nats, 0)
+
+    if hparams.free_bits_mode == 'example':
+      kl_cost = tf.reduce_mean(tf.maximum(kl_div - free_nats, 0))
+    elif hparams.free_bits_mode == 'batch':
+      kl_cost = tf.maximum(tf.reduce_mean(kl_div) - free_nats, 0)
+    else:
+      raise ValueError(
+          'Unknown free_bits_mode: {}'.format(hparams.free_bits_mode))
 
     beta = ((1.0 - tf.pow(hparams.beta_rate, tf.to_float(self.global_step)))
             * hparams.max_beta)
-    self.loss = tf.reduce_mean(r_loss) + beta * tf.reduce_mean(kl_cost)
+    self.loss = tf.reduce_mean(r_loss) + beta * kl_cost
 
     scalars_to_summarize = {
         'loss': self.loss,
@@ -317,6 +324,9 @@ def get_default_hparams():
       max_seq_len=32,  # Maximum sequence length. Others will be truncated.
       z_size=32,  # Size of latent vector z.
       free_bits=0.0,  # Bits to exclude from KL loss per dimension.
+      # If 'example', free bits are calculated per example. If 'batch', free
+      # bits are calculated after averaging the KL Loss for the entire batch.
+      free_bits_mode='example',
       max_beta=1.0,  # Maximum KL cost weight, or cost if not annealing.
       beta_rate=0.0,  # Exponential rate at which to anneal KL cost.
       batch_size=512,  # Minibatch size.
