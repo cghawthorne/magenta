@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import collections
 import os
+import json
 
 # internal imports
 
@@ -65,7 +66,7 @@ def create_example(filename, hparams):
   """Processes an audio file into an Example proto."""
   wav_data = audio_io.samples_to_wav_data(
       librosa.util.normalize(librosa.core.load(
-          filename, sr=hparams.sample_rate)[0]), hparams.sample_rate)
+        filename, sr=hparams.sample_rate)[0])[:512*250], hparams.sample_rate)
 
   example = tf.train.Example(features=tf.train.Features(feature={
       'id':
@@ -157,7 +158,7 @@ def transcribe_audio(transcription_session, filename, frame_threshold,
       onset_predictions=onset_predictions,
       velocity_values=velocity_values)
 
-  return sequence_prediction
+  return sequence_prediction, frame_logits, onset_logits, velocity_values
 
 
 def main(argv):
@@ -180,12 +181,19 @@ def main(argv):
   for filename in argv[1:]:
     tf.logging.info('Starting transcription for %s...', filename)
 
-    sequence_prediction = transcribe_audio(
+    sequence_prediction, frame_logits, onset_logits, velocity_values  = transcribe_audio(
         transcription_session, filename, FLAGS.frame_threshold,
         FLAGS.onset_threshold)
 
     midi_filename = filename + '.midi'
     midi_io.sequence_proto_to_midi_file(sequence_prediction, midi_filename)
+
+    with tf.gfile.Open(filename + '.onset_probs_flat.json', 'w') as f:
+      f.write(json.dumps(onset_logits.tolist()))
+    with tf.gfile.Open(filename + '.frame_probs_flat.json', 'w') as f:
+      f.write(json.dumps(frame_logits.tolist()))
+    with tf.gfile.Open(filename + '.velocity_values_flat.json', 'w') as f:
+      f.write(json.dumps(velocity_values.tolist()))
 
     tf.logging.info('Transcription written to %s.', midi_filename)
 
